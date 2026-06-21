@@ -1,0 +1,9 @@
+Next up:
+
+Matrix algebra
+linear algebra solutions
+n-dim tensor algebra
+more detailed and pedagogical step by step breakdown of calculations
+divergence, curl, gradient calculations in any defined coordinate system (defined relative to cartesian)
+minimum and maximum points if a multivariate function
+multiple integrals in any defined coordinate system.
