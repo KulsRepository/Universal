@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Symbolic Calculator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght=400;500&family=JetBrains+Mono:wght=400;500&family=Lora:ital@0;1&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0a0a;
+    --surface:   #141414;
+    --border:    #27272a;
+    --border-md: #3f3f46;
+    --text:      #f3f4f6;
+    --muted:     #a1a1aa;
+    --faint:     #71717a;
+    --accent:    #e11d48;
+    --accent-bg: #27050f;
+    --accent-bd: #4c0519;
+    --success:   #ef4444;
+    --success-bg:#27050f;
+    --error:     #ef4444;
+    --error-bg:  #2d060e;
+    --step-bg:   #18181b;
+    --radius:    10px;
+    --radius-lg: 14px;
+    --sans:      system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 1.5rem 2rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  header h1 {
+    font-size: 1.35rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  header span {
+    font-size: 0.75rem;
+    color: var(--faint);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #3f3f46;
+    margin-right: 6px;
+    vertical-align: middle;
+    transition: background 0.3s;
+  }
+  .status-dot.ready { background: var(--success); }
+  .status-dot.error { background: var(--error); }
+
+  /* ── Layout ── */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    grid-template-rows: auto auto 1fr;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  /* ── Input panel ── */
+  .input-panel {
+    grid-column: 1;
+    grid-row: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .expr-area {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    cursor: text;
+  }
+  .expr-label {
+    font-size: 1.1rem;
+    color: var(--faint);
+    padding: 0 0.75rem 0 1.25rem;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  
+  .expr-view-container {
+    flex: 1;
+    min-height: 3.5rem;
+    padding: 0.8rem 0.5rem;
+    display: none; 
+    align-items: center;
+    color: var(--text);
+    overflow-x: auto;
+  }
+  .expr-view-placeholder {
+    color: var(--faint);
+    font-size: 1rem;
+    user-select: none;
+  }
+
+  #expr-input {
+    flex: 1;
+    font-family: monospace;
+    font-size: 1.05rem;
+    border: none;
+    outline: none;
+    padding: 1rem 0.5rem;
+    background: transparent;
+    color: var(--accent);
+    caret-color: var(--accent);
+  }
+
+  .mode-view #expr-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
+  .mode-view .expr-view-container {
+    display: flex;
+  }
+
+  .run-btn {
+    flex-shrink: 0;
+    margin: 0.5rem 0.75rem;
+    padding: 0.5rem 1.25rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    z-index: 10;
+  }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:active { opacity: 0.7; }
+  .run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ── Math keyboard ── */
+  .keyboard {
+    padding: 0.875rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: #0d0d0d;
+  }
+  .kb-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .kb-group-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    margin-top: 0.25rem;
+    margin-bottom: 0.1rem;
+    width: 100%;
+  }
+  .kb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    height: 38px;
+    padding: 0 12px;
+    background: #1c1917;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s, border-color 0.1s;
+    white-space: nowrap;
+  }
+  .kb-btn:hover { background: var(--accent-bg); border-color: var(--accent-bd); color: var(--accent); }
+  .kb-btn:active { transform: scale(0.95); }
+  .kb-btn.op { background: var(--accent-bg); border-color: var(--accent-bd); color: var(--accent); font-weight: 500; }
+  .kb-btn.op:hover { background: #3b0712; }
+  .kb-btn.wide { min-width: 76px; }
+
+  .sf-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px dashed var(--border-md);
+    margin-bottom: 0.75rem;
+  }
+
+  /* ── History panel ── */
+  .history-panel {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .history-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--faint);
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+  .entry {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.125rem 1.375rem;
+    margin-bottom: 1rem;
+    animation: slideIn 0.18s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  .entry-query {
+    font-size: 1rem;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 4px;
+  }
+  .entry-query:hover {
+    background: #1c1917;
+  }
+  .entry-query::after {
+    content: ' ✎ click to edit';
+    font-size: 0.65rem;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.15s;
+    vertical-align: middle;
+    margin-left: 10px;
+  }
+  .entry-query:hover::after {
+    opacity: 1;
+  }
+
+  .steps { display: flex; flex-direction: column; gap: 0; margin-bottom: 0.75rem; }
+  .step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 0.5rem 0.75rem;
+    background: var(--step-bg);
+    border-radius: 8px;
+    margin-bottom: 4px;
+    position: relative;
+    border: 1px solid var(--border);
+  }
+  .step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 22px;
+    bottom: -4px;
+    width: 1px;
+    height: 4px;
+    background: var(--border-md);
+  }
+  .step-num {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-bg);
+    border-radius: 999px;
+    min-width: 20px;
+    height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    border: 1px solid var(--accent-bd);
+  }
+  .step-body { flex: 1; min-width: 0; }
+  .step-cmd {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 2px;
+    overflow-wrap: break-word;
+  }
+  .step-result-latex { margin: 4px 0 2px; }
+  .step-note { font-size: 0.7rem; color: var(--faint); margin-top: 1px; }
+
+  .final-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+  .final-label { font-size: 0.75rem; color: var(--faint); flex-shrink: 0; }
+  .final-result-latex { font-size: 1.1rem; margin-top: 4px; overflow-x: auto; color: var(--text); }
+  
+  .entry-error {
+    font-size: 0.8rem;
+    color: var(--error);
+    background: var(--error-bg);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+    border: 1px solid var(--accent-bd);
+  }
+
+  /* ── Reference panel ── */
+  .ref-panel {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    position: sticky;
+    top: 2rem;
+  }
+  .ref-panel h2 {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .ref-section { margin-bottom: 1.125rem; }
+  .ref-section-title {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    margin-bottom: 0.5rem;
+  }
+  .ref-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--bg);
+    font-size: 0.8rem;
+  }
+  .ref-sym {
+    font-size: 0.95rem;
+    color: var(--accent);
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .ref-desc { color: var(--muted); }
+  .ref-example {
+    font-size: 0.72rem;
+    color: var(--faint);
+    margin-top: 1px;
+  }
+
+  /* ── Examples strip ── */
+  .examples-row {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .ex-label { font-size: 0.72rem; color: var(--faint); margin-right: 2px; flex-shrink: 0; }
+  .ex-chip {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--muted);
+    background: var(--surface);
+    transition: border-color 0.1s, color 0.1s;
+  }
+  .ex-chip:hover { border-color: var(--accent-bd); color: var(--accent); background: var(--accent-bg); }
+
+  /* ── Text-math panel ── */
+  .text-math-toggle {
+    font-size: 0.7rem;
+    color: var(--faint);
+    cursor: pointer;
+    padding: 0.4rem 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    user-select: none;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .text-math-toggle:hover { color: var(--muted); }
+  .text-math-toggle .arrow { transition: transform 0.15s; font-size: 0.6rem; }
+  .text-math-toggle.open .arrow { transform: rotate(90deg); }
+  .text-math-body {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .text-math-body.visible { display: flex; }
+  .text-math-item {
+    background: var(--step-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .text-math-label { font-size: 0.65rem; color: var(--faint); min-width: 50px; padding-top: 2px; flex-shrink: 0; }
+  .text-math-code {
+    font-size: 0.75rem;
+    color: var(--muted);
+    flex: 1;
+    overflow-wrap: break-word;
+    word-break: break-all;
+  }
+  .copy-btn {
+    font-size: 0.65rem;
+    padding: 2px 7px;
+    border: 1px solid var(--border-md);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--faint);
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent-bd); }
+  .copy-btn.copied { color: #ef4444; border-color: var(--accent); }
+
+  .katex-wrap { overflow-x: auto; padding: 2px 0; }
+  .no-solution { font-size: 0.82rem; color: var(--muted); font-style: italic; padding: 4px 0; }
+
+  /* ── Sidebar Slider (Debug Panel) ── */
+  .debug-sidebar {
+    position: fixed;
+    top: 0;
+    right: -380px;
+    width: 380px;
+    height: 100vh;
+    background: #0f0f11;
+    border-left: 1px solid var(--border);
+    box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+    z-index: 1000;
+    transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .debug-sidebar.open {
+    right: 0;
+  }
+  .debug-toggle-btn {
+    position: absolute;
+    left: -64px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-90deg);
+    transform-origin: center bottom;
+    background: #1c1917;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    color: var(--muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 6px 14px;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.1s, background 0.1s;
+  }
+  .debug-toggle-btn:hover {
+    color: var(--accent);
+    background: var(--surface);
+  }
+  .debug-sidebar h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    margin-bottom: 0.25rem;
+  }
+  .debug-desc {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  
+  #expr-input-debug {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #f43f5e;
+    padding: 0.75rem;
+  }
+
+  @media (max-width: 780px) {
+    main { grid-template-columns: 1fr; padding: 1rem; gap: 1rem; }
+    .ref-panel { grid-column: 1; grid-row: auto; position: static; }
+    .examples-row { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Symbolic Calculator</h1>
+  <span><span class="status-dot" id="dot"></span><span id="status-text">loading nerdamer…</span></span>
+</header>
+
+<main>
+
+  <div class="input-panel" style="grid-column:1; grid-row:1;">
+    <div class="expr-area mode-view" id="expr-area" onclick="enableEditMode()">
+      <span class="expr-label">›</span>
+      
+      <div id="expr-view-container" class="expr-view-container">
+        <span class="expr-view-placeholder">type or use the keyboard below…</span>
+      </div>
+      
+      <input id="expr-input" type="text" autocomplete="off" spellcheck="false" value="" onblur="disableEditMode()" disabled />
+      
+      <button class="run-btn" id="run-btn" onclick="handleRun(event)" disabled>Compute</button>
+    </div>
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+
+  <div class="examples-row">
+    <span class="ex-label">try:</span>
+    <span class="ex-chip" onclick="setExpr(this)">solve(sin(x) = 0, x)</span>
+    <span class="ex-chip" onclick="setExpr(this)">solve(sin(x) = 3, x)</span>
+    <span class="ex-chip" onclick="setExpr(this)">factor((3x^2+3)^2)</span>
+    <span class="ex-chip" onclick="setExpr(this)">expand(differentiate(((3x^2+3x)^3)))</span>
+    <span class="ex-chip" onclick="setExpr(this)">factor(differentiate(x^4 - x^2))</span>
+    <span class="ex-chip" onclick="setExpr(this)">solve(x^2 - 4 = 0, x)</span>
+  </div>
+
+  <div class="history-panel" id="history">
+    <div class="history-empty" id="empty-msg">results appear here</div>
+  </div>
+
+  <div class="ref-panel">
+    <h2>syntax reference</h2>
+
+    <div class="ref-section">
+      <div class="ref-section-title">Calculus</div>
+      <div class="ref-row"><span class="ref-sym">d/dx</span><span class="ref-desc">derivative of expression</span></div>
+      <div class="ref-example" style="padding-left:88px;margin-bottom:6px;">→ differentiate(sin(x)*x)</div>
+      <div class="ref-row"><span class="ref-sym">∂/∂x</span><span class="ref-desc">partial derivative (same syntax)</span></div>
+      <div class="ref-example" style="padding-left:88px;margin-bottom:6px;">→ differentiate(x^2*y, y)</div>
+      <div class="ref-row"><span class="ref-sym">∫ dx</span><span class="ref-desc">indefinite integral</span></div>
+      <div class="ref-example" style="padding-left:88px;margin-bottom:6px;">→ integrate(e^x * cos(x))</div>
+    </div>
+
+    <div class="ref-section">
+      <div class="ref-section-title">Algebra</div>
+      <div class="ref-row"><span class="ref-sym">expand</span><span class="ref-desc">distribute / FOIL</span></div>
+      <div class="ref-row"><span class="ref-sym">factor</span><span class="ref-desc">factor into primes</span></div>
+      <div class="ref-row"><span class="ref-sym">simplify</span><span class="ref-desc">reduce the expression</span></div>
+      <div class="ref-row"><span class="ref-sym">solve … for x</span><span class="ref-desc">find roots symbolically</span></div>
+    </div>
+
+    <div class="ref-section">
+      <div class="ref-section-title">Functions</div>
+      <div class="ref-row"><span class="ref-sym">sin cos tan</span><span class="ref-desc">trig functions</span></div>
+      <div class="ref-row"><span class="ref-sym">asin acos atan</span><span class="ref-desc">inverse trig</span></div>
+      <div class="ref-row"><span class="ref-sym">ln log</span><span class="ref-desc">natural / base-10 log</span></div>
+      <div class="ref-row"><span class="ref-sym">sqrt abs</span><span class="ref-desc">square root, absolute value</span></div>
+      <div class="ref-row"><span class="ref-sym">e pi</span><span class="ref-desc">Euler's number, π</span></div>
+    </div>
+  </div>
+
+</main>
+
+<div class="debug-sidebar" id="debug-sidebar">
+  <button class="debug-toggle-btn" onclick="toggleDebugSidebar()">debug</button>
+  <h3>Nerdamer State Track</h3>
+  <p class="debug-desc">This console contains only the literal Nerdamer commands passed back into the engine pipeline logic context.</p>
+  
+  <div class="input-panel" style="background: #161619; margin-top: 0.5rem;">
+    <input id="expr-input-debug" type="text" readonly placeholder="empty nerdamer command stream..." />
+  </div>
+</div>
+
+<script>
+const SCRIPTS = [
+  'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/nerdamer.core.js',
+  'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Algebra.js',
+  'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Calculus.js',
+  'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Solve.js',
+  'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Extra.js',
+];
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('Failed: ' + src));
+    document.head.appendChild(s);
+  });
+}
+async function loadNerdamer() {
+  const dot = document.getElementById('dot');
+  const txt = document.getElementById('status-text');
+  try {
+    for (const src of SCRIPTS) await loadScript(src);
+    dot.classList.add('ready');
+    txt.textContent = 'nerdamer ready';
+    document.getElementById('expr-input').disabled = false;
+    document.getElementById('run-btn').disabled = false;
+  } catch(e) {
+    dot.classList.add('error');
+    txt.textContent = 'failed to load nerdamer';
+  }
+}
+loadNerdamer();
+</script>
+
+<script>
+const KB_LAYOUT = [
+  {
+    label: 'Operations',
+    keys: [
+      { display: '\\int dx',      insert: 'integrate()',                       cls: 'op wide', move: -1 },
+      { display: '\\frac{d}{dx}', insert: 'differentiate()',                   cls: 'op wide', move: -1 },
+      { display: '\\frac{\\partial}{\\partial x}', insert: 'differentiate(, y)', cls: 'op wide', move: -5 },
+      { display: '\\text{expand}',  insert: 'expand()',                          cls: 'op wide', move: -1 },
+      { display: '\\text{factor}',  insert: 'factor()',                          cls: 'op wide', move: -1 },
+      { display: '\\text{simplify}',insert: 'simplify()',                        cls: 'op wide', move: -1 },
+      { display: '\\text{solve}',   insert: 'solve(=0, x)',                      cls: 'op wide', move: -6 },
+    ]
+  },
+  {
+    label: 'Functions',
+    keys: [
+      { display: '\\sin(\\square)', insert: 'sin()',  move: -1 },
+      { display: '\\cos(\\square)', insert: 'cos()',  move: -1 },
+      { display: '\\tan(\\square)', insert: 'tan()',  move: -1 },
+      { display: '\\ln(\\square)',  insert: 'ln()',   move: -1 },
+      { display: '\\log(\\square)', insert: 'log()',  move: -1 },
+      { display: '\\sqrt{\\square}',insert: 'sqrt()', move: -1 },
+      { display: '|\\square|',     insert: 'abs()',  move: -1 },
+      { display: 'e^{\\square}',      insert: 'e^()',   move: -1 },
+    ]
+  },
+  {
+    label: 'Constants & variables',
+    keys: [
+      { display: '\\pi', insert: 'pi' },
+      { display: 'e',    insert: 'e' },
+      { display: 'i',    insert: 'i' },
+      { display: 'x',    insert: 'x' },
+      { display: 'y',    insert: 'y' },
+      { display: 't',    insert: 't' },
+      { display: 'n',    insert: 'n' },
+    ]
+  },
+  {
+    label: 'Operators',
+    keys: [
+      { display: 'x^n',     insert: '^()',    move: -1 },
+      { display: '\\times', insert: '*' },
+      { display: '\\div',   insert: '/' },
+      { display: '+',       insert: '+' },
+      { display: '-',       insert: '-' },
+      { display: '( )',     insert: '()',     move: -1 },
+      { display: '=',       insert: ' = ' },
+    ]
+  },
+];
+
+function buildKeyboard() {
+  const kb = document.getElementById('keyboard');
+  KB_LAYOUT.forEach(group => {
+    const lbl = document.createElement('div');
+    lbl.className = 'kb-group-label';
+    lbl.textContent = group.label;
+    kb.appendChild(lbl);
+
+    const row = document.createElement('div');
+    row.className = 'kb-row';
+    group.keys.forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'kb-btn ' + (k.cls || '');
+      
+      if (k.display.includes('\\') || k.display.includes('^')) {
+        try {
+          katex.render(k.display, btn, { throwOnError: false });
+        } catch(e) {
+          btn.textContent = k.display;
+        }
+      } else {
+        btn.textContent = k.display;
+      }
+
+      btn.addEventListener('mousedown', e => {
+        e.preventDefault(); 
+        insertNerdamerToken(k.insert, k.move || 0);
+      });
+      row.appendChild(btn);
+    });
+    kb.appendChild(row);
+  });
+}
+
+function toggleDebugSidebar() {
+  document.getElementById('debug-sidebar').classList.toggle('open');
+}
+
+function enableEditMode() {
+  const area = document.getElementById('expr-area');
+  if (area.classList.contains('mode-view')) {
+    area.classList.remove('mode-view');
+    document.getElementById('expr-input').focus();
+  }
+}
+
+function disableEditMode() {
+  document.getElementById('expr-area').classList.add('mode-view');
+  syncNerdamerToLatexView();
+}
+
+function insertNerdamerToken(text, moveDelta) {
+  const inp = document.getElementById('expr-input');
+  
+  const start = inp.selectionStart || 0;
+  const end = inp.selectionEnd || 0;
+  const val = inp.value;
+  
+  inp.value = val.slice(0, start) + text + val.slice(end);
+  const newPos = start + text.length + moveDelta;
+  inp.setSelectionRange(newPos, newPos);
+  
+  syncNerdamerToLatexView();
+}
+
+document.getElementById('expr-input').addEventListener('input', syncNerdamerToLatexView);
+
+function mapNerdamerToLatexPrompt(str) {
+  if (!str) return '';
+  
+  let out = tokenizeExpr(str);
+  out = convertToLatex(out);
+
+  out = out.replace(/\bintegrate\s*/gi, '\\int ');
+  out = out.replace(/\bdifferentiate\s*/gi, '\\frac{d}{dx} ');
+  out = out.replace(/\bwith respect to\s+([a-z])/gi, ' \\,d$1');
+  out = out.replace(/\bfor\s+([a-z])/gi, '_{[$1]}');
+  out = out.replace(/\bexpand\s*/gi, '\\text{expand }');
+  out = out.replace(/\bfactor\s*/gi, '\\text{factor }');
+  out = out.replace(/\bsimplify\s*/gi, '\\text{simplify }');
+  out = out.replace(/\bsolve\s*/gi, '\\text{solve }');
+  
+  return out;
+}
+
+function syncNerdamerToLatexView() {
+  const rawStr = document.getElementById('expr-input').value;
+  
+  document.getElementById('expr-input-debug').value = rawStr;
+  
+  const view = document.getElementById('expr-view-container');
+  if (!rawStr.trim()) {
+    view.innerHTML = '<span class="expr-view-placeholder">type or use the keyboard below…</span>';
+    return;
+  }
+  
+  const latex = mapNerdamerToLatexPrompt(rawStr);
+  
+  view.innerHTML = '';
+  const mathSpan = document.createElement('span');
+  try {
+    katex.render(latex, mathSpan, { throwOnError: false, displayMode: false });
+    view.appendChild(mathSpan);
+  } catch(e) {
+    view.textContent = rawStr;
+  }
+}
+
+buildKeyboard();
+</script>
+
+<script>
+function setExpr(el) {
+  const rawCommand = el.getAttribute('onclick').match(/'(.*?)'/)[1] || el.textContent;
+  document.getElementById('expr-input').value = rawCommand;
+  syncNerdamerToLatexView();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    handleRun();
+  }
+});
+
+const KNOWN_NAMES = new Set([
+  'sin','cos','tan','cot','sec','csc',
+  'asin','acos','atan','acot','asec','acsc',
+  'sinh','cosh','tanh','coth','sech','csch',
+  'asinh','acosh','atanh',
+  'sqrt','cbrt','abs','exp','log','ln',
+  'floor','ceil','round','sign',
+  'pi','inf','infinity',
+  'integrate','diff','differentiate','expand','factor','simplify','solve','partfrac','gcd',
+]);
+
+function tokenize(expr) {
+  let out = '';
+  let i = 0;
+  const s = expr;
+  while (i < s.length) {
+    if (s[i] === ' ') { out += ' '; i++; continue; }
+    const wordMatch = s.slice(i).match(/^[A-Za-z]{2,}/);
+    if (wordMatch) {
+      const word = wordMatch[0];
+      if (KNOWN_NAMES.has(word.toLowerCase())) {
+        out += word;
+        i += word.length;
+        continue;
+      }
+      let matched = false;
+      for (let len = word.length - 1; len >= 2; len--) {
+        const prefix = word.slice(0, len).toLowerCase();
+        if (KNOWN_NAMES.has(prefix)) {
+          out += word.slice(0, len);
+          const rest = word.slice(len);
+          if (rest.length > 0) out += '*' + tokenize(rest);
+          matched = true;
+          i += word.length;
+          break;
+        }
+      }
+      if (matched) continue;
+      out += word.split('').join('*');
+      i += word.length;
+      continue;
+    }
+    const numMatch = s.slice(i).match(/^\d+(\.\d+)?/);
+    if (numMatch) {
+      const num = numMatch[0];
+      out += num;
+      i += num.length;
+      if (i < s.length && /[A-Za-z]/.test(s[i])) out += '*';
+      continue;
+    }
+    if (/[A-Za-z]/.test(s[i])) {
+      if (out.length > 0 && /\d$/.test(out)) out += '*';
+      out += s[i];
+      i++;
+      continue;
+    }
+    out += s[i];
+    i++;
+  }
+  return out;
+}
+
+const META_WORDS = new Set([
+  'integrate','differentiate','diff','derivative','expand','factor','simplify','solve',
+  'with','respect','to','for','of','in','terms','dx','dy','dt','dz',
+  'partfrac','gcd','and','by',
+]);
+
+function tokenizeExpr(str) {
+  return str.split(/(\s+)/).map(part => {
+    if (/^\s+$/.test(part)) return part;
+    if (META_WORDS.has(part.toLowerCase())) return part;
+    if (/^\d+(\.\d+)?$/.test(part)) return part;
+    return tokenize(part);
+  }).join('');
+}
+
+/* ========================================================================================
+  WORK-IN-PROGRESS MODULE: EXECUTION INTERCEPT MATRIX
+========================================================================================
+  Patches known abstract syntax tree execution leaks in raw downstream engines.
+  
+  UPDATED IN VERSION 2.1: Polynomial Power Factorization Shield.
+  Nerdamer's core simplification system drops outer scalar coefficients when factoring 
+  expressions encapsulated in exponential powers—e.g., parsing factor((3x^2+3)^2) as 
+  3*(1+x^2)^2 instead of the mathematically true 9*(1+x^2)^2.
+  
+  TACTICAL WORKAROUND: If an active factorization call target contains an active exponent 
+  modifier symbol ('^'), we force an internal algebraic expansion loop first. This flattens 
+  the nested parenthetical structures into a raw polynomial stream, clearing the token tree 
+  mismatch before factoring execution loops.
+========================================================================================
+*/
+function executeSingleCommand(intent, mathExpr, variable = 'x') {
+  if (intent === 'integrate') {
+    return nerdamer(`integrate(${mathExpr}, ${variable})`).toString();
+  } else if (intent === 'diff') {
+    return nerdamer(`diff(${mathExpr}, ${variable})`).toString();
+  } else if (intent === 'expand') {
+    return nerdamer(`expand(${mathExpr})`).toString();
+  } else if (intent === 'factor') {
+    // WIP CRITICAL FIX BLOCK: Detect explicit exponential modifier markers
+    if (mathExpr.includes('^')) {
+      // Step A: Flatten the composite token nodes into a scalar polynomial array
+      let fullyExpandedPolynomial = nerdamer(`expand(${mathExpr})`).toString();
+      
+      // Step B: Pass the expanded string back to factor to guarantee scalar fidelity
+      return nerdamer(`factor(${fullyExpandedPolynomial})`).toString();
+    }
+    // Default safe route for normal unpowered factors
+    return nerdamer(`factor(${mathExpr})`).toString();
+  } else if (intent === 'simplify') {
+    return nerdamer(`simplify(${mathExpr})`).toString();
+  } else if (intent === 'solve') {
+    let equation = mathExpr;
+    if (equation.includes('=')) {
+      const sides = equation.split('=');
+      equation = `(${sides[0]}) - (${sides[1]})`;
+    }
+    let rawSolutions = nerdamer.solveEquations(equation, variable);
+    return Array.isArray(rawSolutions) ? rawSolutions.map(sol => nerdamer(sol).toString()).join(', ') : nerdamer(rawSolutions).toString();
+  }
+  return nerdamer(mathExpr).toString();
+}
+
+function getCleanEnglishIntentName(rawCommand) {
+  const dictionary = { 
+    'integrate': 'Integral', 
+    'diff': 'Derivative', 
+    'differentiate': 'Derivative',
+    'expand': 'Expansion', 
+    'factor': 'Factorization', 
+    'simplify': 'Simplification', 
+    'solve': 'Resolution' 
+  };
+  return dictionary[rawCommand.toLowerCase()] || rawCommand;
+}
+
+function findInnermostCommand(str) {
+  const regex = /\b(integrate|differentiate|diff|expand|factor|simplify|solve)\(/gi;
+  let match;
+  const matches = [];
+  while ((match = regex.exec(str)) !== null) {
+    matches.push({
+      name: match[1],
+      index: match.index,
+      openParenthesisIndex: match.index + match[0].length - 1
+    });
+  }
+  
+  for (let m of matches) {
+    let depth = 1;
+    let j = m.openParenthesisIndex + 1;
+    while (j < str.length && depth > 0) {
+      if (str[j] === '(') depth++;
+      else if (str[j] === ')') depth--;
+      if (depth === 0) break;
+      j++;
+    }
+    if (depth === 0) {
+      m.closeParenthesisIndex = j;
+      m.fullMatch = str.slice(m.index, j + 1);
+      m.args = str.slice(m.openParenthesisIndex + 1, j);
+    } else {
+      m.invalid = true;
+    }
+  }
+  
+  const validMatches = matches.filter(m => !m.invalid);
+  if (validMatches.length === 0) return null;
+  
+  for (let m of validMatches) {
+    let isInnermost = true;
+    for (let other of validMatches) {
+      if (other !== m && other.index > m.openParenthesisIndex && other.index < m.closeParenthesisIndex) {
+        isInnermost = false;
+        break;
+      }
+    }
+    if (isInnermost) return m;
+  }
+  return null;
+}
+
+function tryInterceptTrigEquations(rawInput) {
+  const clean = rawInput.trim();
+  
+  const generalSinRegex = /^solve\(\s*sin\(\s*([a-zA-Z0-9_\+\-\*\s\/\^()]+)\s*\)\s*=\s*([a-zA-Z0-9_\+\-\*\s\/\^()]+)\s*,\s*([a-zA-Z])\s*\)$/i;
+  const match = clean.match(generalSinRegex);
+  
+  if (match) {
+    const innerArg = match[1].trim(); 
+    const rightSide = match[2].trim(); 
+    const targetVar = match[3].trim();
+    
+    try {
+      let numVal = parseFloat(nerdamer(rightSide).evaluate().toString());
+      
+      if (!isNaN(numVal) && Math.abs(numVal) > 1) {
+        return {
+          isIntercepted: true,
+          data: {
+            raw: clean,
+            steps: [
+              {
+                label: `Analytic Domain Check: sin(${innerArg}) = ${rightSide}`,
+                note: `Checked trigonometric restrictions: value lines cannot intersect outside real amplitude range [-1, 1]`,
+                result: "No Real Solutions"
+              }
+            ],
+            finalResult: "[]",
+            customLatexResult: "\\varnothing",
+            finalLabel: "no solution",
+            finalNote: "outside domain bounds",
+            error: null
+          }
+        };
+      }
+      
+      if (numVal === 0) {
+        let algebraicTarget = "pi * k";
+        let calculatedClosure = "";
+        
+        if (innerArg === targetVar) {
+          calculatedClosure = "pi * k";
+        } else {
+          const eqToSolve = `(${innerArg}) - (pi * k)`;
+          const resolvedObj = nerdamer.solveEquations(eqToSolve, targetVar);
+          calculatedClosure = Array.isArray(resolvedObj) ? resolvedObj.map(s => s.toString()).join(', ') : resolvedObj.toString();
+        }
+        
+        return {
+          isIntercepted: true,
+          data: {
+            raw: clean,
+            steps: [
+              {
+                label: `Analytic Intercept: sin(${innerArg}) = 0`,
+                note: "Applied periodic transcendental root rule: sin(u) = 0 ⟹ u = πk",
+                result: `${innerArg} = pi * k`
+              }
+            ],
+            finalResult: calculatedClosure + "  [for k in Z]",
+            customLatexResult: toLatex(calculatedClosure) + ",\\quad k \\in \\mathbb{Z}",
+            finalLabel: "periodic solution",
+            finalNote: "solved analytically",
+            error: null
+          }
+        };
+      }
+      
+    } catch (err) {
+      return { isIntercepted: false };
+    }
+  }
+  
+  return { isIntercepted: false };
+}
+
+function balanceParentheses(inputString) {
+  let openCount = 0;
+  let closeCount = 0;
+  
+  for (let char of inputString) {
+    if (char === '(') openCount++;
+    if (char === ')') closeCount++;
+  }
+  
+  if (openCount > closeCount) {
+    return inputString + ')'.repeat(openCount - closeCount);
+  }
+  
+  return inputString;
+}
+
+function computeResult(raw) {
+  let steps = [], finalResult = null, finalLabel = null, finalNote = null, error = null;
+  
+  const processedRaw = balanceParentheses(raw);
+  
+  const interceptCheck = tryInterceptTrigEquations(processedRaw);
+  if (interceptCheck.isIntercepted) {
+    return interceptCheck.data;
+  }
+  
+  try {
+    let workingString = processedRaw.trim();
+    
+    let safety = 0;
+    while (safety++ < 30) {
+      let match = findInnermostCommand(workingString);
+      if (!match) break; 
+
+      let fullMatchString = match.fullMatch;
+      let cmdName = match.name; 
+      let cmd = cmdName.toLowerCase();
+      let argumentsPayload = match.args;
+
+      let resolvedCmdKey = cmd;
+      if (cmd === 'differentiate') resolvedCmdKey = 'diff';
+
+      let argsArray = splitTopLevel(argumentsPayload, ',');
+      let coreMath = argsArray[0].trim();
+      let extraVar = 'x'; 
+
+      if (argsArray.length > 1) {
+        extraVar = argsArray[1].trim();
+      }
+
+      let evaluationResult = executeSingleCommand(resolvedCmdKey, coreMath, extraVar);
+
+      steps.push({
+        label: `${cmdName}(${coreMath}${argsArray.length > 1 ? ', ' + extraVar : ''})`,
+        note: `${getCleanEnglishIntentName(resolvedCmdKey)} calculated`,
+        result: evaluationResult
+      });
+
+      workingString = workingString.replace(fullMatchString, evaluationResult);
+    }
+
+    if (workingString.includes('=')) {
+      const sides = workingString.split('=');
+      workingString = `(${sides[0]}) - (${sides[1]})`;
+      finalResult = Array.isArray(nerdamer.solveEquations(workingString, 'x')) 
+        ? nerdamer.solveEquations(workingString, 'x').map(s => nerdamer(s).toString()).join(', ') 
+        : nerdamer.solveEquations(workingString, 'x').toString();
+      finalLabel = 'solve';
+      finalNote = 'equation solved';
+    } else {
+      try {
+        finalResult = nerdamer(workingString).toString();
+      } catch(innerErr) {
+        finalResult = workingString;
+      }
+      finalLabel = `nerdamer evaluation`;
+      finalNote = 'evaluated';
+    }
+
+  } catch(e) {
+    error = e.message;
+  }
+  return { raw: processedRaw, steps, finalResult, finalLabel, finalNote, error };
+}
+
+function isEmptySolution(str) {
+  return /^\[\s*\]$/.test((str || '').trim()) || (str || '').trim() === '';
+}
+
+function toLatex(expr) {
+  if (!expr || typeof expr !== 'string') return '';
+  let s = expr.trim();
+
+  if (s.startsWith('[') && s.endsWith(']')) {
+    s = s.slice(1, -1).trim();
+  }
+  if (s === '') return '\\varnothing';
+
+  const parts = splitTopLevel(s, ',');
+  if (parts.length > 1) {
+    return parts.map(p => {
+      try { return nerdamer(p.trim()).toTeX(); } catch(e) { return convertToLatex(p.trim()); }
+    }).join(',\\;');
+  }
+
+  try {
+    return nerdamer(s).toTeX();
+  } catch(e) {
+    return convertToLatex(s);
+  }
+}
+
+function splitTopLevel(str, sep) {
+  const parts = [];
+  let depth = 0, cur = '';
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '(' || str[i] === '[') depth++;
+    else if (str[i] === ')' || str[i] === ']') depth--;
+    if (str[i] === sep && depth === 0) { parts.push(cur); cur = ''; }
+    else cur += str[i];
+  }
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+function convertToLatex(s) {
+  s = convertFractions(s);
+  s = convertPowers(s);
+
+  const funcMap = [
+    ['asin',     '\\arcsin '],
+    ['acos',     '\\arccos '],
+    ['atan',     '\\arctan '],
+    ['sinh',     '\\sinh '],
+    ['cosh',     '\\cosh '],
+    ['tanh',     '\\tanh '],
+    ['sin',      '\\sin '],
+    ['cos',      '\\cos '],
+    ['tan',      '\\tan '],
+    ['cot',      '\\cot '],
+    ['sec',      '\\sec '],
+    ['csc',      '\\csc '],
+    ['ln',       '\\ln '],
+    ['log',      '\\log '],
+  ];
+  s = s.replace(/sqrt\(([^()]+)\)/g, function(_, inner) { return '\\sqrt{' + inner + '}'; });
+  s = s.replace(/abs\(([^()]+)\)/g, function(_, inner) { return '\\left|' + inner + '\\right|'; });
+  for (var fi = 0; fi < funcMap.length; fi++) {
+    var fname = funcMap[fi][0];
+    var flatex = funcMap[fi][1];
+    s = s.replace(new RegExp(fname + '(?=[^a-zA-Z]|$)', 'g'), flatex);
+  }
+
+  s = s.replace(/([a-zA-Z0-9})\]])\*([a-zA-Z0-9({\\])/g, function(_, a, b) {
+    if (/[a-zA-Z]/.test(a) && /[a-zA-Z]/.test(b)) return a + ' ' + b;
+    if (/[0-9]/.test(a) && /[a-zA-Z]/.test(b)) return a + ' ' + b;
+    return a + ' \\cdot ' + b;
+  });
+
+  s = s.replace(/\bpi\b/g, '\\pi ');
+  s = s.replace(/\bInfinity\b/g, '\\infty ');
+  s = s.replace(/\binf\b/g, '\\infty ');
+
+  return s;
+}
+
+function convertPowers(s) {
+  return s.replace(/\^(\(([^()]*(\([^()]*\))*[^()]*)\)|\w+)/g, function(match, full) {
+    var inner = full.charAt(0) === '(' ? full.slice(1, -1) : full;
+    return '^{' + inner + '}';
+  });
+}
+
+const SF_TRIGGER = 7;
+
+function convertFractions(s) {
+  var changed = true, iterations = 0;
+  while (changed && iterations++ < 20) {
+    var next = replaceFraction(s);
+    changed = (next !== s);
+    s = next;
+  }
+  return s;
+}
+
+function replaceFraction(s) {
+  for (var i = 0; i < s.length; i++) {
+    if (s[i] === '/') {
+      var num = extractLeft(s, i);
+      var den = extractRight(s, i);
+      if (num && den) {
+        var before = s.slice(0, i - num.raw.length);
+        var after  = s.slice(i + 1 + den.raw.length);
+        return before + '\\frac{' + num.inner + '}{' + den.inner + '}' + after;
+      }
+    }
+  }
+  return s;
+}
+
+function extractLeft(s, slashPos) {
+  var i = slashPos - 1;
+  if (i < 0) return null;
+  if (s[i] === ')') {
+    var depth = 0;
+    while (i >= 0) {
+      if (s[i] === ')') depth++;
+      else if (s[i] === '(') { depth--; if (depth === 0) break; }
+      i--;
+    }
+    var raw = s.slice(i, slashPos);
+    return { raw: raw, inner: raw.slice(1, -1) };
+  }
+  var end = slashPos;
+  while (i >= 0 && /[a-zA-Z0-9._]/.test(s[i])) i--;
+  var raw = s.slice(i + 1, slashPos);
+  if (!raw) return null;
+  return { raw: raw, inner: raw };
+}
+
+function extractRight(s, slashPos) {
+  var i = slashPos + 1;
+  if (i >= s.length) return null;
+  if (s[i] === '(') {
+    var depth = 0, start = i;
+    while (i < s.length) {
+      if (s[i] === '(') depth++;
+      else if (s[i] === ')') { depth--; if (depth === 0) break; }
+      i++;
+    }
+    var raw = s.slice(start, i);
+    return { raw: raw, inner: raw.slice(1, -1) };
+  }
+  var start = i;
+  while (i < s.length && /[a-zA-Z0-9._]/.test(s[i])) i++;
+  var raw = s.slice(start, i);
+  if (!raw) return null;
+  return { raw: raw, inner: raw };
+}
+
+function renderKatex(exprStr, displayMode, targetSF) {
+  const span = document.createElement('span');
+  span.className = 'katex-wrap';
+  try {
+    katex.render(toLatex(fmtResult(exprStr, targetSF)), span, {
+      displayMode: !!displayMode,
+      throwOnError: false,
+      trust: false,
+    });
+  } catch(e) {
+    span.textContent = exprStr;
+  }
+  return span;
+}
+
+function triggersSFNotation(data) {
+  const check = (str) => {
+    if (!str) return false;
+    const matches = str.match(/\d+/g);
+    if (!matches) return false;
+    return matches.some(m => m.length >= SF_TRIGGER);
+  };
+  if (check(data.finalResult)) return true;
+  return data.steps.some(s => check(s.result));
+}
+
+function getCleanTextCopyValue(rawOutputString) {
+  try {
+     return nerdamer(rawOutputString).toExpression().toString();
+  } catch(e) {
+     return rawOutputString;
+  }
+}
+
+function renderEntry(data) {
+  document.getElementById('empty-msg')?.remove();
+  const hist = document.getElementById('history');
+  
+  const el = document.createElement('div');
+  el.className = 'entry';
+
+  el.style.cursor = 'pointer';
+  el.title = 'Click to edit this entry';
+  el.onclick = () => {
+    document.getElementById('expr-input').value = data.raw;
+    syncNerdamerToLatexView();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const queryDiv = document.createElement('div');
+  queryDiv.className = 'entry-query';
+  
+  const mathSpan = document.createElement('span');
+  try {
+      katex.render(mapNerdamerToLatexPrompt(data.raw), mathSpan, { throwOnError: false });
+  } catch(e) {
+      mathSpan.textContent = data.raw;
+  }
+  queryDiv.appendChild(mathSpan);
+  el.appendChild(queryDiv);
+
+  let instanceSF = 3; 
+  const parsedTriggersSlider = triggersSFNotation(data);
+
+  let sliderContainer = null;
+  if (parsedTriggersSlider) {
+    sliderContainer = document.createElement('div');
+    sliderContainer.className = 'sf-slider-wrap';
+    sliderContainer.innerHTML = `
+      <span style="font-size:0.72rem; color:var(--faint); flex-shrink:0;">significant figures</span>
+      <input type="range" min="1" max="10" value="${instanceSF}" step="1" style="flex:1; max-width:180px; accent-color:var(--accent);" />
+      <span class="sf-display" style="font-size:0.82rem; color:var(--accent); min-width:14px; font-weight:500;">${instanceSF}</span>
+      <span style="font-size:0.72rem; color:var(--faint);">— updates long number lengths above</span>
+    `;
+    el.appendChild(sliderContainer);
+  }
+
+  const stepsWrapper = document.createElement('div');
+  el.appendChild(stepsWrapper);
+
+  const finalWrapper = document.createElement('div');
+  el.appendChild(finalWrapper);
+
+  function updateCardDisplays() {
+    stepsWrapper.innerHTML = '';
+    finalWrapper.innerHTML = '';
+
+    if (data.steps.length > 0) {
+      const stepsDiv = document.createElement('div');
+      stepsDiv.className = 'steps';
+      data.steps.forEach((s, i) => {
+        const stepEl = document.createElement('div');
+        stepEl.className = 'step';
+
+        const numEl = document.createElement('div');
+        numEl.className = 'step-num';
+        numEl.textContent = i + 1;
+
+        const bodyEl = document.createElement('div');
+        bodyEl.className = 'step-body';
+
+        const cmdEl = document.createElement('div');
+        cmdEl.className = 'step-cmd';
+        cmdEl.textContent = s.label;
+
+        const resEl = document.createElement('div');
+        resEl.className = 'step-result-latex';
+        const eqSpan = document.createElement('span');
+        eqSpan.style.cssText = 'color:var(--faint);font-size:0.85rem;margin-right:4px;';
+        eqSpan.textContent = '=';
+        resEl.appendChild(eqSpan);
+        resEl.appendChild(renderKatex(s.result, false, instanceSF));
+
+        const noteEl = document.createElement('div');
+        noteEl.className = 'step-note';
+        noteEl.textContent = s.note;
+
+        bodyEl.appendChild(cmdEl);
+        bodyEl.appendChild(resEl);
+        bodyEl.appendChild(noteEl);
+        stepEl.appendChild(numEl);
+        stepEl.appendChild(bodyEl);
+        stepsDiv.appendChild(stepEl);
+      });
+      stepsWrapper.appendChild(stepsDiv);
+    }
+
+    if (data.error) {
+      const errEl = document.createElement('div');
+      errEl.className = 'entry-error';
+      errEl.textContent = '✗ ' + data.error;
+      finalWrapper.appendChild(errEl);
+    } else {
+      const noSolution = isEmptySolution(data.finalResult);
+      const finalRow = document.createElement('div');
+      finalRow.className = 'final-row';
+      finalRow.style.flexDirection = 'column';
+      finalRow.style.alignItems = 'flex-start';
+      finalRow.style.gap = '6px';
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'final-label';
+      labelEl.textContent = data.steps.length > 0 ? 'final' : 'result';
+      finalRow.appendChild(labelEl);
+
+      if (noSolution) {
+        const nsEl = document.createElement('div');
+        nsEl.className = 'no-solution';
+        nsEl.textContent = 'No closed-form solution found.';
+        finalRow.appendChild(nsEl);
+      } else {
+        const resEl = document.createElement('div');
+        resEl.className = 'final-result-latex';
+        
+        if (data.customLatexResult) {
+          const customSpan = document.createElement('span');
+          try {
+            katex.render(data.customLatexResult, customSpan, { displayMode: true, throwOnError: false });
+            resEl.appendChild(customSpan);
+          } catch(e) {
+            resEl.appendChild(renderKatex(data.finalResult, true, instanceSF));
+          }
+        } else {
+          resEl.appendChild(renderKatex(data.finalResult, true, instanceSF));
+        }
+        finalRow.appendChild(resEl);
+      }
+      finalWrapper.appendChild(finalRow);
+    }
+  }
+
+  if (sliderContainer) {
+    const sliderInput = sliderContainer.querySelector('input[type="range"]');
+    const sliderDisplay = sliderContainer.querySelector('.sf-display');
+    sliderInput.addEventListener('input', (e) => {
+      instanceSF = parseInt(e.target.value);
+      sliderDisplay.textContent = instanceSF;
+      updateCardDisplays();
+    });
+  }
+
+  updateCardDisplays();
+
+  const textMathItems = [];
+  data.steps.forEach((s, i) => {
+    textMathItems.push({ label: 'step ' + (i+1), text: s.label + ' = ' + getCleanTextCopyValue(s.result) });
+  });
+  if (!data.error) {
+    textMathItems.push({ label: 'result', text: isEmptySolution(data.finalResult) ? 'No solution found.' : getCleanTextCopyValue(data.finalResult) });
+  }
+
+  const toggle = document.createElement('div');
+  toggle.className = 'text-math-toggle';
+  toggle.innerHTML = '<span class="arrow">▶</span> text math';
+  const body = document.createElement('div');
+  body.className = 'text-math-body';
+
+  textMathItems.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'text-math-item';
+    const lbl = document.createElement('span');
+    lbl.className = 'text-math-label';
+    lbl.textContent = item.label;
+    const code = document.createElement('span');
+    code.className = 'text-math-code';
+    code.textContent = item.text;
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.textContent = 'copy';
+    btn.onclick = (ev) => {
+      ev.stopPropagation(); 
+      navigator.clipboard.writeText(item.text).then(() => {
+        btn.textContent = 'copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1500);
+      });
+    };
+    row.appendChild(lbl);
+    row.appendChild(code);
+    row.appendChild(btn);
+    body.appendChild(row);
+  });
+
+  toggle.onclick = (ev) => {
+    ev.stopPropagation(); 
+    toggle.classList.toggle('open');
+    body.classList.toggle('visible');
+  };
+
+  el.appendChild(toggle);
+  el.appendChild(body);
+  hist.insertBefore(el, hist.firstChild);
+}
+
+function handleRun(e) {
+  if (e) e.stopPropagation();
+  const raw = document.getElementById('expr-input').value.trim();
+  if (!raw) return;
+  const data = computeResult(raw);
+  renderEntry(data);
+  
+  document.getElementById('expr-input').value = '';
+  disableEditMode();
+}
+
+const supDigits = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+function toSup(n) { return String(n).split('').map(c => supDigits[c] || c).join(''); }
+
+function fmtNumber(numStr, sf) {
+  const digits = numStr.replace(/[^0-9]/g, '');
+  if (digits.length < SF_TRIGGER) return numStr;
+
+  const n = parseFloat(numStr);
+  if (!isFinite(n)) return numStr;
+  if (n === 0) return '0';
+
+  const exp = Math.floor(Math.log10(Math.abs(n)));
+  const mantissa = n / Math.pow(10, exp);
+  const rounded = parseFloat(mantissa.toPrecision(sf));
+  let mStr = rounded.toPrecision(sf).replace(/\.?0+$/, '');
+  if (exp === 0) return mStr;
+  return mStr + '×10' + toSup(exp);
+}
+
+function fmtResult(str, sf) {
+  return str.replace(/(?<![a-zA-Z_])(-?\d+(?:\.\d+)?|\d*\.\d+)(?![a-zA-Z_])/g, (match) => {
+    return fmtNumber(match, sf);
+  });
+}
+</script>
+
+</body>
+</html>
