@@ -626,6 +626,7 @@
 </div>
 
 <script>
+<!--Here I loaded the librariess :$ they are all used here. The matrix and linear algebra are all in core.-->
 const SCRIPTS = [
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/nerdamer.core.js',
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Algebra.js',
@@ -633,6 +634,7 @@ const SCRIPTS = [
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Solve.js',
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Extra.js',
 ];
+<!--Heres the promise wrapper + the error catcher-->
 function loadScript(src) {
   return new Promise((res, rej) => {
     const s = document.createElement('script');
@@ -640,6 +642,9 @@ function loadScript(src) {
     document.head.appendChild(s);
   });
 }
+
+<!--We ensure that everything is loaded before moving on--this was the biggest cause before-->
+
 async function loadNerdamer() {
   const dot = document.getElementById('dot');
   const txt = document.getElementById('status-text');
@@ -658,6 +663,7 @@ loadNerdamer();
 </script>
 
 <script>
+  <!--Following is the match keyboard UI-->
 const KB_LAYOUT = [
   {
     label: 'Operations',
@@ -709,7 +715,7 @@ const KB_LAYOUT = [
     ]
   },
 ];
-
+<!--This iterates through the map above to generate symbolic buttons with KaTeX-->
 function buildKeyboard() {
   const kb = document.getElementById('keyboard');
   KB_LAYOUT.forEach(group => {
@@ -744,6 +750,9 @@ function buildKeyboard() {
   });
 }
 
+<!--I asked Gemini to help me with this part to better my app. This ensures good typing.-->
+<!--This part essentially finds the index of the cursor and places inside tokens (e.g. sin())-->
+
 function toggleDebugSidebar() {
   document.getElementById('debug-sidebar').classList.toggle('open');
 }
@@ -776,6 +785,8 @@ function insertNerdamerToken(text, moveDelta) {
 }
 
 document.getElementById('expr-input').addEventListener('input', syncNerdamerToLatexView);
+
+<!--Also asked Gemini for help here: this lets users see what they wrote in LaTeX-->
 
 function mapNerdamerToLatexPrompt(str) {
   if (!str) return '';
@@ -818,10 +829,12 @@ function syncNerdamerToLatexView() {
   }
 }
 
+<!--Putting this AFTER the cursor placer and LaTeX UI works much better-->
 buildKeyboard();
 </script>
 
 <script>
+<!-- little managers for user interaction: 1-puts math expressions in input fields, 2-listens to keys -->
 function setExpr(el) {
   const rawCommand = el.getAttribute('onclick').match(/'(.*?)'/)[1] || el.textContent;
   document.getElementById('expr-input').value = rawCommand;
@@ -833,7 +846,8 @@ document.addEventListener('keydown', e => {
     handleRun();
   }
 });
-
+<!-- Here we made the Lexical tool that makes Universal as strong as it is. This is the tokenizer which is for now mostly native to server-side CAS. -->
+<!-- Users can write a variety of inputs which will work -->
 const KNOWN_NAMES = new Set([
   'sin','cos','tan','cot','sec','csc',
   'asin','acos','atan','acot','asec','acsc',
@@ -844,7 +858,7 @@ const KNOWN_NAMES = new Set([
   'pi','inf','infinity',
   'integrate','diff','differentiate','expand','factor','simplify','solve','partfrac','gcd',
 ]);
-
+<!-- xy->x*y, cos()->cos() -->
 function tokenize(expr) {
   let out = '';
   let i = 0;
@@ -901,7 +915,7 @@ const META_WORDS = new Set([
   'with','respect','to','for','of','in','terms','dx','dy','dt','dz',
   'partfrac','gcd','and','by',
 ]);
-
+<!-- this part actually maps it out with regex, this is the preprocessor to the tokenizer -->
 function tokenizeExpr(str) {
   return str.split(/(\s+)/).map(part => {
     if (/^\s+$/.test(part)) return part;
@@ -914,17 +928,16 @@ function tokenizeExpr(str) {
 /* ========================================================================================
   WORK-IN-PROGRESS MODULE: EXECUTION INTERCEPT MATRIX
 ========================================================================================
-  Patches known abstract syntax tree execution leaks in raw downstream engines.
-  
-  UPDATED IN VERSION 2.1: Polynomial Power Factorization Shield.
-  Nerdamer's core simplification system drops outer scalar coefficients when factoring 
-  expressions encapsulated in exponential powers—e.g., parsing factor((3x^2+3)^2) as 
-  3*(1+x^2)^2 instead of the mathematically true 9*(1+x^2)^2.
-  
-  TACTICAL WORKAROUND: If an active factorization call target contains an active exponent 
-  modifier symbol ('^'), we force an internal algebraic expansion loop first. This flattens 
-  the nested parenthetical structures into a raw polynomial stream, clearing the token tree 
-  mismatch before factoring execution loops.
+Nerdamer has a bug when factoring expressions that are raised to a power.
+For example (3x^2 + 3)^2 should factor to: 9(1 + x^2)^2 but Nerdamer incorrectly returns:
+3(1 + x^2)^2
+
+because it loses part of the outer coefficient during factorization :p
+
+To avoid this, expressions containing exponentiation ('^') are expanded
+before factoring. Converting the expression into a plain polynomial form
+prevents the coefficient-loss bug and allows factorization to proceed
+correctly.
 ========================================================================================
 */
 function executeSingleCommand(intent, mathExpr, variable = 'x') {
@@ -935,15 +948,15 @@ function executeSingleCommand(intent, mathExpr, variable = 'x') {
   } else if (intent === 'expand') {
     return nerdamer(`expand(${mathExpr})`).toString();
   } else if (intent === 'factor') {
-    // WIP CRITICAL FIX BLOCK: Detect explicit exponential modifier markers
+    // WIP: Detects exponentials
     if (mathExpr.includes('^')) {
-      // Step A: Flatten the composite token nodes into a scalar polynomial array
+      // Step A: take the tokenz and put them in a polynomial as this lets them be treated
       let fullyExpandedPolynomial = nerdamer(`expand(${mathExpr})`).toString();
       
-      // Step B: Pass the expanded string back to factor to guarantee scalar fidelity
+      // Step B: pass it back to factor
       return nerdamer(`factor(${fullyExpandedPolynomial})`).toString();
     }
-    // Default safe route for normal unpowered factors
+    // Default safe route for "normal" unpowered factors
     return nerdamer(`factor(${mathExpr})`).toString();
   } else if (intent === 'simplify') {
     return nerdamer(`simplify(${mathExpr})`).toString();
@@ -971,11 +984,15 @@ function getCleanEnglishIntentName(rawCommand) {
   };
   return dictionary[rawCommand.toLowerCase()] || rawCommand;
 }
-
+<!-- This part finds the innermost bracket by creating a matched object data structure based on bracket count through regex -->
+// I fixed it to be able to go down the amount of brackets for as many brackets as possible; so the issue of unnecessary brackets is no more !!!
+// this works in volatile memory as it is the whole purpose of the project: being client side
+<!-- This essentially runs the math commands in order when they are nested. the nested commands result becomes the input of the nester command.-->
 function findInnermostCommand(str) {
   const regex = /\b(integrate|differentiate|diff|expand|factor|simplify|solve)\(/gi;
   let match;
   const matches = [];
+  // this stores the regex matches above found in the code in a match list
   while ((match = regex.exec(str)) !== null) {
     matches.push({
       name: match[1],
@@ -983,10 +1000,11 @@ function findInnermostCommand(str) {
       openParenthesisIndex: match.index + match[0].length - 1
     });
   }
-  
+  // this uses the matches to find the depth
   for (let m of matches) {
     let depth = 1;
     let j = m.openParenthesisIndex + 1;
+    //this closes the total commands when depth hits 0
     while (j < str.length && depth > 0) {
       if (str[j] === '(') depth++;
       else if (str[j] === ')') depth--;
@@ -1017,6 +1035,8 @@ function findInnermostCommand(str) {
   }
   return null;
 }
+<!-- Trig functions fail to give readable results as nerdamer tackles them numerically. -->
+// WIP: update to handle cos and tan, csc, cot, sec
 
 function tryInterceptTrigEquations(rawInput) {
   const clean = rawInput.trim();
@@ -1093,6 +1113,8 @@ function tryInterceptTrigEquations(rawInput) {
   return { isIntercepted: false };
 }
 
+<!-- This auto closes unclosed parentheses -->
+
 function balanceParentheses(inputString) {
   let openCount = 0;
   let closeCount = 0;
@@ -1109,6 +1131,8 @@ function balanceParentheses(inputString) {
   return inputString;
 }
 
+<!-- // This coordinates the pipeline :) with this we can choose when to use which function -->
+
 function computeResult(raw) {
   let steps = [], finalResult = null, finalLabel = null, finalNote = null, error = null;
   
@@ -1123,6 +1147,8 @@ function computeResult(raw) {
     let workingString = processedRaw.trim();
     
     let safety = 0;
+    // following is a command to prevent infinite loops + the main way we resolve everything within parentheses
+    // The while loop solves expressions
     while (safety++ < 30) {
       let match = findInnermostCommand(workingString);
       if (!match) break; 
@@ -1135,6 +1161,7 @@ function computeResult(raw) {
       let resolvedCmdKey = cmd;
       if (cmd === 'differentiate') resolvedCmdKey = 'diff';
 
+      // this lets us separate different parameters from one another
       let argsArray = splitTopLevel(argumentsPayload, ',');
       let coreMath = argsArray[0].trim();
       let extraVar = 'x'; 
@@ -1151,9 +1178,12 @@ function computeResult(raw) {
         result: evaluationResult
       });
 
+      // this is where we replace the string with the results :)
       workingString = workingString.replace(fullMatchString, evaluationResult);
     }
 
+    // this if command solves equations, it comes after the expressions as first the experessions are handled and then the equations.
+    // TLDR: The while loop resolves all individual expressions and sums them up, the if loop deals with their equalities.
     if (workingString.includes('=')) {
       const sides = workingString.split('=');
       workingString = `(${sides[0]}) - (${sides[1]})`;
@@ -1178,10 +1208,12 @@ function computeResult(raw) {
   return { raw: processedRaw, steps, finalResult, finalLabel, finalNote, error };
 }
 
+// verifies empty inputs in either arrays or strings, this is purposely matrix scalable :)
 function isEmptySolution(str) {
   return /^\[\s*\]$/.test((str || '').trim()) || (str || '').trim() === '';
 }
 
+// Makes it LaTeX -> user readable. We want both a LaTeX version AND a "normal" text one which we can use as an input
 function toLatex(expr) {
   if (!expr || typeof expr !== 'string') return '';
   let s = expr.trim();
@@ -1203,19 +1235,6 @@ function toLatex(expr) {
   } catch(e) {
     return convertToLatex(s);
   }
-}
-
-function splitTopLevel(str, sep) {
-  const parts = [];
-  let depth = 0, cur = '';
-  for (let i = 0; i < str.length; i++) {
-    if (str[i] === '(' || str[i] === '[') depth++;
-    else if (str[i] === ')' || str[i] === ']') depth--;
-    if (str[i] === sep && depth === 0) { parts.push(cur); cur = ''; }
-    else cur += str[i];
-  }
-  if (cur) parts.push(cur);
-  return parts;
 }
 
 function convertToLatex(s) {
@@ -1267,7 +1286,7 @@ function convertPowers(s) {
 }
 
 const SF_TRIGGER = 7;
-
+// this ensures fractions are simplified, added a stopper haha
 function convertFractions(s) {
   var changed = true, iterations = 0;
   while (changed && iterations++ < 20) {
@@ -1277,7 +1296,7 @@ function convertFractions(s) {
   }
   return s;
 }
-
+// nerdamer has a difficult time splitting all nominator/denom inputs
 function replaceFraction(s) {
   for (var i = 0; i < s.length; i++) {
     if (s[i] === '/') {
@@ -1293,6 +1312,7 @@ function replaceFraction(s) {
   return s;
 }
 
+// these two add on top of that by ensuring that the boundaries of the nominator on the left of / and the denom on its right are recognized
 function extractLeft(s, slashPos) {
   var i = slashPos - 1;
   if (i < 0) return null;
@@ -1333,6 +1353,21 @@ function extractRight(s, slashPos) {
   return { raw: raw, inner: raw };
 }
 
+// standard JS split functions absolutely broke the program, had to ask Gemini to help me with this :)
+function splitTopLevel(str, sep) {
+  const parts = [];
+  let depth = 0, cur = '';
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === '(' || str[i] === '[') depth++;
+    else if (str[i] === ')' || str[i] === ']') depth--;
+    if (str[i] === sep && depth === 0) { parts.push(cur); cur = ''; }
+    else cur += str[i];
+  }
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+// KaTeX is LaTeX for JS :)
 function renderKatex(exprStr, displayMode, targetSF) {
   const span = document.createElement('span');
   span.className = 'katex-wrap';
@@ -1347,7 +1382,7 @@ function renderKatex(exprStr, displayMode, targetSF) {
   }
   return span;
 }
-
+// in case of too many significant figures
 function triggersSFNotation(data) {
   const check = (str) => {
     if (!str) return false;
@@ -1358,7 +1393,7 @@ function triggersSFNotation(data) {
   if (check(data.finalResult)) return true;
   return data.steps.some(s => check(s.result));
 }
-
+// last layer of the code :) the code is mixed up between the layers to make people have to study it if they want to do smt similar.
 function getCleanTextCopyValue(rawOutputString) {
   try {
      return nerdamer(rawOutputString).toExpression().toString();
@@ -1366,7 +1401,16 @@ function getCleanTextCopyValue(rawOutputString) {
      return rawOutputString;
   }
 }
+// I asked gemini to help me with renderEntry; It is arguably the biggest function in this code:
+/*
+TLDR: it essentially handles the entry into the prompt.
 
+It assigns an onclick listener so that we can copy preset functions to the input -> this tends to break between updates.
+It handles LaTeX when typing into the prompt.
+It handles the significant figures issues with a per-answer slider.
+
+
+*/
 function renderEntry(data) {
   document.getElementById('empty-msg')?.remove();
   const hist = document.getElementById('history');
@@ -1416,6 +1460,7 @@ function renderEntry(data) {
   const finalWrapper = document.createElement('div');
   el.appendChild(finalWrapper);
 
+  // this function specifically creates the layout of the steps of the calculation -> WIP it will become more pedagogical later.
   function updateCardDisplays() {
     stepsWrapper.innerHTML = '';
     finalWrapper.innerHTML = '';
@@ -1459,7 +1504,7 @@ function renderEntry(data) {
       });
       stepsWrapper.appendChild(stepsDiv);
     }
-
+  // this evaluates whether the answer has a null solution or encountered an error -> if so it presents it. It also loads custom results.
     if (data.error) {
       const errEl = document.createElement('div');
       errEl.className = 'entry-error';
@@ -1516,6 +1561,7 @@ function renderEntry(data) {
 
   updateCardDisplays();
 
+  // Finally we can present the steps and the final solution
   const textMathItems = [];
   data.steps.forEach((s, i) => {
     textMathItems.push({ label: 'step ' + (i+1), text: s.label + ' = ' + getCleanTextCopyValue(s.result) });
@@ -1557,6 +1603,7 @@ function renderEntry(data) {
   });
 
   toggle.onclick = (ev) => {
+    // to not get issues with the onclick actions :)
     ev.stopPropagation(); 
     toggle.classList.toggle('open');
     body.classList.toggle('visible');
@@ -1567,6 +1614,7 @@ function renderEntry(data) {
   hist.insertBefore(el, hist.firstChild);
 }
 
+// this is the execution trigger.
 function handleRun(e) {
   if (e) e.stopPropagation();
   const raw = document.getElementById('expr-input').value.trim();
@@ -1578,9 +1626,11 @@ function handleRun(e) {
   disableEditMode();
 }
 
+// for the UI
 const supDigits = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
 function toSup(n) { return String(n).split('').map(c => supDigits[c] || c).join(''); }
 
+// this is also required for the significant figures, dont change as if it changes the whole sig figs program can have issues
 function fmtNumber(numStr, sf) {
   const digits = numStr.replace(/[^0-9]/g, '');
   if (digits.length < SF_TRIGGER) return numStr;
@@ -1597,6 +1647,7 @@ function fmtNumber(numStr, sf) {
   return mStr + '×10' + toSup(exp);
 }
 
+// especially for future use when I'll want to add numbering axes of geometric problems.
 function fmtResult(str, sf) {
   return str.replace(/(?<![a-zA-Z_])(-?\d+(?:\.\d+)?|\d*\.\d+)(?![a-zA-Z_])/g, (match) => {
     return fmtNumber(match, sf);
