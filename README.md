@@ -5,10 +5,6 @@ This calculator has the capacity to replace paid-for pedagogical mathematical se
 The layout of the site:
 
 
-
-We have a matrix multiplication feature:
-
-
 The unfilled blanks get filled with zeroes to form an n by m rectangle, the matrix can be extended to any size the user wants as this is a client-side issue.
 
 --------------
