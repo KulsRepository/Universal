@@ -7,6 +7,7 @@ The layout of the site:
 ![explanatory image](imgs/howitlooks.png)
 
 We have a matrix multiplication feature:
+
 ![explanatory image](imgs/Screenshotmatrix5x5.png)
 ![explanatory image](imgs/Screenshotmatrix7x7.png)
 
