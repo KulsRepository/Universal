@@ -4,6 +4,11 @@ This calculator has the capacity to replace paid-for pedagogical mathematical se
 
 The layout of the site:
 
+![explanatory image](imgs/howitlooks.png)
+
+We have a matrix multiplication feature:
+![explanatory image](imgs/Screenshotmatrix5x5.png)
+![explanatory image](imgs/Screenshotmatrix7x7.png)
 
 The unfilled blanks get filled with zeroes to form an n by m rectangle, the matrix can be extended to any size the user wants as this is a client-side issue.
 
