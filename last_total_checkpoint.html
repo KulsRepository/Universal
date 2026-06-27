@@ -576,6 +576,103 @@
     padding: 0.75rem;
   }
 
+  /* ── Matrix input panel ── */
+  .matrix-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.72);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .matrix-overlay.open { display: flex; }
+  .matrix-panel {
+    background: var(--surface);
+    border: 1px solid var(--border-md);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    max-width: min(92vw, 720px);
+    width: 100%;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  }
+  .matrix-panel h3 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .matrix-hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .matrix-grid-wrap {
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    padding: 0.75rem;
+    max-height: 52vh;
+  }
+  .matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 5px;
+    min-width: 520px;
+  }
+  .matrix-cell {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    padding: 0 6px;
+    background: #1c1917;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    text-align: center;
+    outline: none;
+  }
+  .matrix-cell:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-bd);
+  }
+  .matrix-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .matrix-actions button {
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    border: 1px solid var(--border-md);
+    background: #1c1917;
+    color: var(--text);
+  }
+  .matrix-actions button:hover {
+    border-color: var(--accent-bd);
+    color: var(--accent);
+  }
+  .matrix-actions .matrix-insert {
+    background: var(--accent);
+    border-color: var(--accent-bd);
+    color: #fff;
+    font-weight: 500;
+  }
+  .matrix-actions .matrix-insert:hover {
+    background: #be123c;
+    color: #fff;
+  }
+
   @media (max-width: 780px) {
     main { grid-template-columns: 1fr; padding: 1rem; gap: 1rem; }
     .ref-panel { grid-column: 1; grid-row: auto; position: static; }
@@ -654,6 +751,20 @@
 
 </main>
 
+<div class="matrix-overlay" id="matrix-overlay" onclick="if(event.target===this)closeMatrixPanel()">
+  <div class="matrix-panel" onclick="event.stopPropagation()">
+    <h3>Matrix input</h3>
+    <p class="matrix-hint">Fill any cells you need. Empty cells inside the bounding rectangle from (0,0) are treated as 0.</p>
+    <div class="matrix-grid-wrap">
+      <div class="matrix-grid" id="matrix-grid"></div>
+    </div>
+    <div class="matrix-actions">
+      <button type="button" onclick="closeMatrixPanel()">Cancel</button>
+      <button type="button" class="matrix-insert" onclick="confirmMatrixInput()">Insert matrix</button>
+    </div>
+  </div>
+</div>
+
 <div class="debug-sidebar" id="debug-sidebar">
   <button class="debug-toggle-btn" onclick="toggleDebugSidebar()">debug</button>
   <h3>Nerdamer State Track</h3>
@@ -715,6 +826,16 @@ const KB_LAYOUT = [
       { display: '\\text{factor}',  insert: 'factor()',                          cls: 'op wide', move: -1 },
       { display: '\\text{simplify}',insert: 'simplify()',                        cls: 'op wide', move: -1 },
       { display: '\\text{solve}',   insert: 'solve(=0, x)',                      cls: 'op wide', move: -6 },
+    ]
+  },
+  {
+    label: 'Matrices',
+    keys: [
+      { display: '\\begin{pmatrix}\\square\\end{pmatrix}', action: 'matrix-panel', cls: 'op wide' },
+      { display: '\\text{invert}',    insert: 'invert()',       cls: 'op', move: -1 },
+      { display: '\\text{transpose}', insert: 'transpose()',    cls: 'op', move: -1 },
+      { display: '\\det',             insert: 'determinant()',  cls: 'op', move: -1 },
+      { display: '\\text{dot}',       insert: 'dot(,)',         cls: 'op', move: -1 },
     ]
   },
   {
@@ -781,8 +902,9 @@ function buildKeyboard() {
       }
 
       btn.addEventListener('mousedown', e => {
-        e.preventDefault(); 
-        insertNerdamerToken(k.insert, k.move || 0);
+        e.preventDefault();
+        if (k.action === 'matrix-panel') openMatrixPanel();
+        else insertNerdamerToken(k.insert, k.move || 0);
       });
       row.appendChild(btn);
     });
@@ -792,6 +914,76 @@ function buildKeyboard() {
 
 <!--I asked Gemini to help me with this part to better my app. This ensures good typing.-->
 <!--This part essentially finds the index of the cursor and places inside tokens (e.g. sin())-->
+
+const MATRIX_GRID_SIZE = 10;
+
+function buildMatrixGrid() {
+  const grid = document.getElementById('matrix-grid');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = 'repeat(' + MATRIX_GRID_SIZE + ', 1fr)';
+  for (let r = 0; r < MATRIX_GRID_SIZE; r++) {
+    for (let c = 0; c < MATRIX_GRID_SIZE; c++) {
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'matrix-cell';
+      inp.dataset.r = r;
+      inp.dataset.c = c;
+      inp.autocomplete = 'off';
+      inp.spellcheck = false;
+      grid.appendChild(inp);
+    }
+  }
+}
+
+function openMatrixPanel() {
+  buildMatrixGrid();
+  document.getElementById('matrix-overlay').classList.add('open');
+  enableEditMode();
+  const first = document.querySelector('#matrix-grid .matrix-cell');
+  if (first) first.focus();
+}
+
+function closeMatrixPanel() {
+  document.getElementById('matrix-overlay').classList.remove('open');
+}
+
+function readMatrixFromGrid() {
+  const inputs = document.querySelectorAll('#matrix-grid .matrix-cell');
+  const filled = [];
+  inputs.forEach(inp => {
+    const val = inp.value.trim();
+    if (val !== '') filled.push({ r: +inp.dataset.r, c: +inp.dataset.c, val });
+  });
+  if (!filled.length) return null;
+
+  let maxR = 0, maxC = 0;
+  for (const f of filled) {
+    if (f.r > maxR) maxR = f.r;
+    if (f.c > maxC) maxC = f.c;
+  }
+
+  const lookup = new Map(filled.map(f => [f.r + ',' + f.c, f.val]));
+  const rows = [];
+  for (let r = 0; r <= maxR; r++) {
+    const row = [];
+    for (let c = 0; c <= maxC; c++) {
+      row.push(lookup.get(r + ',' + c) || '0');
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function matrixToNerdamerString(rows) {
+  return 'matrix(' + rows.map(row => '[' + row.join(',') + ']').join(',') + ')';
+}
+
+function confirmMatrixInput() {
+  const rows = readMatrixFromGrid();
+  if (!rows) { closeMatrixPanel(); return; }
+  insertNerdamerToken(matrixToNerdamerString(rows), 0);
+  closeMatrixPanel();
+}
 
 function toggleDebugSidebar() {
   document.getElementById('debug-sidebar').classList.toggle('open');
@@ -842,6 +1034,12 @@ function mapNerdamerToLatexPrompt(str) {
   out = out.replace(/\bfactor\s*/gi, '\\text{factor }');
   out = out.replace(/\bsimplify\s*/gi, '\\text{simplify }');
   out = out.replace(/\bsolve\s*/gi, '\\text{solve }');
+  out = out.replace(/\binvert\s*/gi, '\\text{invert} ');
+  out = out.replace(/\btranspose\s*/gi, '\\text{transpose} ');
+  out = out.replace(/\bdeterminant\s*/gi, '\\det ');
+  out = out.replace(/\bdet\s*/gi, '\\det ');
+  out = out.replace(/\bmatrix\s*/gi, '\\text{matrix} ');
+  out = out.replace(/\bdot\s*/gi, '\\text{dot} ');
   
   return out;
 }
@@ -881,6 +1079,15 @@ function setExpr(el) {
 }
 
 document.addEventListener('keydown', e => {
+  const overlay = document.getElementById('matrix-overlay');
+  if (overlay.classList.contains('open')) {
+    if (e.key === 'Escape') { e.preventDefault(); closeMatrixPanel(); return; }
+    if (e.key === 'Enter' && e.target.classList.contains('matrix-cell')) {
+      e.preventDefault();
+      confirmMatrixInput();
+      return;
+    }
+  }
   if (e.key === 'Enter') {
     handleRun();
   }
@@ -896,6 +1103,7 @@ const KNOWN_NAMES = new Set([
   'floor','ceil','round','sign',
   'pi','inf','infinity',
   'integrate','diff','differentiate','expand','factor','simplify','solve','partfrac','gcd',
+  'matrix','invert','transpose','determinant','det','dot','vector','imatrix','cross','size',
 ]);
 
 <!-- xy->x*y, cos()->cos() -->
@@ -955,6 +1163,7 @@ const META_WORDS = new Set([
   'integrate','differentiate','diff','derivative','expand','factor','simplify','solve',
   'with','respect','to','for','of','in','terms','dx','dy','dt','dz',
   'partfrac','gcd','and','by',
+  'matrix','invert','transpose','determinant','det','dot','vector','cross','size',
 ]);
 <!-- this part actually maps it out with regex, this is the preprocessor to the tokenizer -->
 function tokenizeExpr(str) {
@@ -1008,6 +1217,14 @@ function executeSingleCommand(intent, mathExpr, variable = 'x') {
     }
     let rawSolutions = nerdamer.solveEquations(equation, variable);
     return Array.isArray(rawSolutions) ? rawSolutions.map(sol => nerdamer(sol).toString()).join(', ') : nerdamer(rawSolutions).toString();
+  } else if (intent === 'invert') {
+    return nerdamer(`invert(${mathExpr})`).toString();
+  } else if (intent === 'transpose') {
+    return nerdamer(`transpose(${mathExpr})`).toString();
+  } else if (intent === 'determinant' || intent === 'det') {
+    return nerdamer(`determinant(${mathExpr})`).toString();
+  } else if (intent === 'dot') {
+    return nerdamer(`dot(${mathExpr})`).toString();
   }
   return nerdamer(mathExpr).toString();
 }
@@ -1020,7 +1237,12 @@ function getCleanEnglishIntentName(rawCommand) {
     'expand': 'Expansion', 
     'factor': 'Factorization', 
     'simplify': 'Simplification', 
-    'solve': 'Resolution' 
+    'solve': 'Resolution',
+    'invert': 'Matrix inversion',
+    'transpose': 'Transpose',
+    'determinant': 'Determinant',
+    'det': 'Determinant',
+    'dot': 'Dot product'
   };
   return dictionary[rawCommand.toLowerCase()] || rawCommand;
 }
@@ -1029,7 +1251,7 @@ function getCleanEnglishIntentName(rawCommand) {
 // this works in volatile memory as it is the whole purpose of the project: being client side
 <!-- This essentially runs the math commands in order when they are nested. the nested commands result becomes the input of the nester command.-->
 function findInnermostCommand(str) {
-  const regex = /\b(integrate|differentiate|diff|expand|factor|simplify|solve)\(/gi;
+  const regex = /\b(integrate|differentiate|diff|expand|factor|simplify|solve|invert|transpose|determinant|det|dot)\(/gi;
   let match;
   const matches = [];
   // this stores the regex matches above found in the code in a match list
@@ -1216,6 +1438,7 @@ function computeResult(raw) {
 
       let resolvedCmdKey = cmd;
       if (cmd === 'differentiate') resolvedCmdKey = 'diff';
+      if (cmd === 'det') resolvedCmdKey = 'determinant';
 
       // this lets us separate different parameters from one another
       let argsArray = splitTopLevel(argumentsPayload, ',');
@@ -1226,10 +1449,15 @@ function computeResult(raw) {
         extraVar = argsArray[1].trim();
       }
 
-      let evaluationResult = executeSingleCommand(resolvedCmdKey, coreMath, extraVar);
+      let evaluationInput = (cmd === 'dot') ? argumentsPayload : coreMath;
+      let evaluationResult = executeSingleCommand(resolvedCmdKey, evaluationInput, extraVar);
+
+      const labelArgs = cmd === 'dot'
+        ? argumentsPayload
+        : (coreMath + (argsArray.length > 1 ? ', ' + extraVar : ''));
 
       steps.push({
-        label: `${cmdName}(${coreMath}${argsArray.length > 1 ? ', ' + extraVar : ''})`,
+        label: `${cmdName}(${labelArgs})`,
         note: `${getCleanEnglishIntentName(resolvedCmdKey)} calculated`,
         result: evaluationResult
       });
@@ -1269,12 +1497,64 @@ function isEmptySolution(str) {
   return /^\[\s*\]$/.test((str || '').trim()) || (str || '').trim() === '';
 }
 
+function parseMatrixRows(expr) {
+  const s = expr.trim();
+  if (!s.startsWith('[[') || !s.endsWith(']]')) return null;
+  const rowParts = splitTopLevel(s.slice(1, -1).trim(), ',');
+  if (!rowParts.length) return null;
+  const rows = [];
+  for (const part of rowParts) {
+    const p = part.trim();
+    if (!p.startsWith('[') || !p.endsWith(']')) return null;
+    const cells = splitTopLevel(p.slice(1, -1), ',').map(c => c.trim());
+    if (!cells.length || cells.some(c => c === '')) return null;
+    rows.push(cells);
+  }
+  return rows;
+}
+
+function maybeSquareMatrixRows(rows) {
+  if (rows.length === 1 && rows[0].length > 1) {
+    const side = Math.round(Math.sqrt(rows[0].length));
+    if (side * side === rows[0].length) {
+      const flat = rows[0];
+      const square = [];
+      for (let i = 0; i < side; i++) square.push(flat.slice(i * side, (i + 1) * side));
+      return square;
+    }
+  }
+  if (rows.length > 1 && rows.every(r => r.length === 1)) {
+    const side = Math.round(Math.sqrt(rows.length));
+    if (side * side === rows.length) {
+      const flat = rows.map(r => r[0]);
+      const square = [];
+      for (let i = 0; i < side; i++) square.push(flat.slice(i * side, (i + 1) * side));
+      return square;
+    }
+  }
+  return rows;
+}
+
+function matrixRowsToLatex(rows) {
+  const cell = (c) => {
+    try { return nerdamer(c).toTeX(); } catch(e) { return convertToLatex(c); }
+  };
+  return '\\begin{pmatrix}'
+    + rows.map(row => row.map(cell).join(' & ')).join(' \\\\ ')
+    + '\\end{pmatrix}';
+}
+
 // Makes it LaTeX -> user readable. We want both a LaTeX version AND a "normal" text one which we can use as an input
 function toLatex(expr) {
   if (!expr || typeof expr !== 'string') return '';
   let s = expr.trim();
 
   if (s === 'No Real Solutions') return '\\text{No Real Solutions}';
+
+  const matrixRows = parseMatrixRows(s);
+  if (matrixRows) {
+    return matrixRowsToLatex(maybeSquareMatrixRows(matrixRows));
+  }
 
   if (s.startsWith('[') && s.endsWith(']')) {
     s = s.slice(1, -1).trim();
