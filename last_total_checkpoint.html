@@ -83,7 +83,7 @@
   main {
     flex: 1;
     display: grid;
-    grid-template-columns: 1fr 380px;
+    grid-template-columns: minmax(0, 1fr) 380px;
     grid-template-rows: auto auto 1fr;
     max-width: 1100px;
     width: 100%;
@@ -333,7 +333,17 @@
     margin-bottom: 2px;
     overflow-wrap: break-word;
   }
-  .step-result-latex { margin: 4px 0 2px; max-width: 100%; font-family: var(--sans); color: var(--text); }
+  .step-result-latex { 
+    margin: 4px 0 2px; 
+    max-width: 100%; 
+    font-family: var(--sans); 
+    color: var(--text); 
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    overflow-x: auto;
+  }
   .step-note { font-size: 0.7rem; color: var(--faint); margin-top: 1px; }
 
   .final-row {
@@ -356,6 +366,10 @@
     overflow-wrap: break-word;
     word-break: break-word;
     white-space: normal;
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    overflow-x: auto;
   }
   
   .entry-error {
@@ -751,10 +765,22 @@
 
 </main>
 
-<div class="matrix-overlay" id="matrix-overlay" onclick="if(event.target===this)closeMatrixPanel()">
+<<div class="matrix-overlay" id="matrix-overlay" onclick="if(event.target===this)closeMatrixPanel()">
   <div class="matrix-panel" onclick="event.stopPropagation()">
     <h3>Matrix input</h3>
-    <p class="matrix-hint">Fill any cells you need. Empty cells inside the bounding rectangle from (0,0) are treated as 0.</p>
+    
+    <div style="display: flex; gap: 1rem; margin: 0.25rem 0; align-items: center; background: var(--bg); padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
+      <label style="font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+        Rows: 
+        <input type="number" id="matrix-rows-input" value="3" min="1" max="30" style="width: 55px; background: #1c1917; border: 1px solid var(--border-md); color: var(--text); border-radius: 4px; padding: 3px 6px; text-align: center; outline: none;" oninput="buildMatrixGrid()">
+      </label>
+      <label style="font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+        Columns: 
+        <input type="number" id="matrix-cols-input" value="3" min="1" max="30" style="width: 55px; background: #1c1917; border: 1px solid var(--border-md); color: var(--text); border-radius: 4px; padding: 3px 6px; text-align: center; outline: none;" oninput="buildMatrixGrid()">
+      </label>
+    </div>
+
+    <p class="matrix-hint">Fill any cells you need. Empty cells are automatically treated as 0 inside your generated matrix array.</p>
     <div class="matrix-grid-wrap">
       <div class="matrix-grid" id="matrix-grid"></div>
     </div>
@@ -917,6 +943,140 @@ function buildKeyboard() {
 
 const MATRIX_GRID_SIZE = 10;
 
+function handleMatrixKeyboardNav(e) {
+  const cell = e.target;
+  const r = parseInt(cell.dataset.r);
+  const c = parseInt(cell.dataset.c);
+  
+  const rowsInput = document.getElementById('matrix-rows-input');
+  const colsInput = document.getElementById('matrix-cols-input');
+  const totalRows = rowsInput ? parseInt(rowsInput.value) || 3 : 3;
+  const totalCols = colsInput ? parseInt(colsInput.value) || 3 : 3;
+  
+  let targetR = r;
+  let targetC = c;
+  
+  if (e.key === 'ArrowUp') {
+    targetR = r - 1;
+  } else if (e.key === 'ArrowDown') {
+    targetR = r + 1;
+  } else if (e.key === 'ArrowLeft') {
+    // Only hop cells if the caret is at the absolute start of the input text string
+    if (cell.selectionStart === 0) {
+      targetC = c - 1;
+      if (targetC < 0 && targetR > 0) {
+        targetC = totalCols - 1;
+        targetR--;
+      }
+    } else {
+      return; 
+    }
+  } else if (e.key === 'ArrowRight') {
+    // Only hop cells if the caret reaches the absolute end of the input text string
+    if (cell.selectionEnd === cell.value.length) {
+      targetC = c + 1;
+      if (targetC >= totalCols && targetR < totalRows - 1) {
+        targetC = 0;
+        targetR++;
+      }
+    } else {
+      return;
+    }
+  } else {
+    return;
+  }
+  
+  // Apply safe index bounds guard checks before dispatching focus transitions
+  if (targetR >= 0 && targetR < totalRows && targetC >= 0 && targetC < totalCols) {
+    e.preventDefault();
+    const nextInp = document.querySelector(`#matrix-grid .matrix-cell[data-r="${targetR}"][data-c="${targetC}"]`);
+    if (nextInp) {
+      nextInp.focus();
+      nextInp.select(); // Highlight cell contents instantly for hyper-fast workspace overrides
+    }
+  }
+}
+
+function buildMatrixGrid() {
+  const grid = document.getElementById('matrix-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  
+  const rowsInput = document.getElementById('matrix-rows-input');
+  const colsInput = document.getElementById('matrix-cols-input');
+  const rows = rowsInput ? parseInt(rowsInput.value) || 3 : 3;
+  const cols = colsInput ? parseInt(colsInput.value) || 3 : 3;
+  
+  // Re-flow columns dynamically via style rule binding variables
+  grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+  grid.style.minWidth = Math.max(520, cols * 65) + 'px';
+  
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'matrix-cell';
+      inp.dataset.r = r;
+      inp.dataset.c = c;
+      inp.autocomplete = 'off';
+      inp.spellcheck = false;
+      
+      // Bind navigation event listeners immediately during instance compilation
+      inp.addEventListener('keydown', handleMatrixKeyboardNav);
+      
+      grid.appendChild(inp);
+    }
+  }
+}
+
+function openMatrixPanel() {
+  const rowsInput = document.getElementById('matrix-rows-input');
+  const colsInput = document.getElementById('matrix-cols-input');
+  if (rowsInput && !rowsInput.value) rowsInput.value = "3";
+  if (colsInput && !colsInput.value) colsInput.value = "3";
+  
+  buildMatrixGrid();
+  document.getElementById('matrix-overlay').classList.add('open');
+  enableEditMode();
+  
+  const first = document.querySelector('#matrix-grid .matrix-cell');
+  if (first) {
+    first.focus();
+  }
+}
+
+function closeMatrixPanel() {
+  document.getElementById('matrix-overlay').classList.remove('open');
+}
+
+function readMatrixFromGrid() {
+  const inputs = document.querySelectorAll('#matrix-grid .matrix-cell');
+  const rowsInput = document.getElementById('matrix-rows-input');
+  const colsInput = document.getElementById('matrix-cols-input');
+  const totalRows = rowsInput ? parseInt(rowsInput.value) || 3 : 3;
+  const totalCols = colsInput ? parseInt(colsInput.value) || 3 : 3;
+
+  const filled = [];
+  inputs.forEach(inp => {
+    const val = inp.value.trim();
+    if (val !== '') filled.push({ r: +inp.dataset.r, c: +inp.dataset.c, val });
+  });
+  
+  if (!filled.length) return null;
+
+  const lookup = new Map(filled.map(f => [f.r + ',' + f.c, f.val]));
+  const rows = [];
+  for (let r = 0; r < totalRows; r++) {
+    const row = [];
+    for (let c = 0; c < totalCols; c++) {
+      row.push(lookup.get(r + ',' + c) || '0');
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+/*
 function buildMatrixGrid() {
   const grid = document.getElementById('matrix-grid');
   grid.innerHTML = '';
@@ -941,10 +1101,6 @@ function openMatrixPanel() {
   enableEditMode();
   const first = document.querySelector('#matrix-grid .matrix-cell');
   if (first) first.focus();
-}
-
-function closeMatrixPanel() {
-  document.getElementById('matrix-overlay').classList.remove('open');
 }
 
 function readMatrixFromGrid() {
@@ -973,6 +1129,12 @@ function readMatrixFromGrid() {
   }
   return rows;
 }
+*/
+
+function closeMatrixPanel() {
+  document.getElementById('matrix-overlay').classList.remove('open');
+}
+
 
 function matrixToNerdamerString(rows) {
   return 'matrix(' + rows.map(row => '[' + row.join(',') + ']').join(',') + ')';
