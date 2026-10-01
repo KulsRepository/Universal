@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Symbolic Calculator</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght=400;500&family=JetBrains+Mono:wght=400;500&family=Lora:ital@0;1&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0a0a;
+    --surface:   #141414;
+    --border:    #27272a;
+    --border-md: #3f3f46;
+    --text:      #f3f4f6;
+    --muted:     #a1a1aa;
+    --faint:     #71717a;
+    --accent:    #e11d48;
+    --accent-bg: #27050f;
+    --accent-bd: #4c0519;
+    --success:   #ef4444;
+    --success-bg:#27050f;
+    --error:     #ef4444;
+    --error-bg:  #2d060e;
+    --step-bg:   #18181b;
+    --radius:    10px;
+    --radius-lg: 14px;
+    --sans:      system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 1.5rem 2rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  header h1 {
+    font-size: 1.35rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  header span {
+    font-size: 0.75rem;
+    color: var(--faint);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #3f3f46;
+    margin-right: 6px;
+    vertical-align: middle;
+    transition: background 0.3s;
+  }
+  .status-dot.ready { background: var(--success); }
+  .status-dot.error { background: var(--error); }
+
+  /* ── Layout ── */
+  main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-rows: auto auto 1fr;
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  /* ── Input panel ── */
+  .input-panel {
+    grid-column: 1;
+    grid-row: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .expr-area {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    cursor: text;
+  }
+  .expr-label {
+    font-size: 1.1rem;
+    color: var(--faint);
+    padding: 0 0.75rem 0 1.25rem;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  
+  .expr-view-container {
+    flex: 1;
+    min-height: 3.5rem;
+    padding: 0.8rem 0.5rem;
+    display: none; 
+    align-items: center;
+    color: var(--text);
+    overflow-x: auto;
+  }
+  .expr-view-placeholder {
+    color: var(--faint);
+    font-size: 1rem;
+    user-select: none;
+  }
+
+  #expr-input {
+    flex: 1;
+    font-family: monospace;
+    font-size: 1.05rem;
+    border: none;
+    outline: none;
+    padding: 1rem 0.5rem;
+    background: transparent;
+    color: var(--accent);
+    caret-color: var(--accent);
+  }
+
+  .mode-view #expr-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
+  }
+  .mode-view .expr-view-container {
+    display: flex;
+  }
+
+  .run-btn {
+    flex-shrink: 0;
+    margin: 0.5rem 0.75rem;
+    padding: 0.5rem 1.25rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    z-index: 10;
+  }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:active { opacity: 0.7; }
+  .run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* ── Math keyboard ── */
+  .keyboard {
+    padding: 0.875rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: #0d0d0d;
+  }
+  .kb-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .kb-group-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    margin-top: 0.25rem;
+    margin-bottom: 0.1rem;
+    width: 100%;
+  }
+  .kb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    height: 38px;
+    padding: 0 12px;
+    background: #1c1917;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s, border-color 0.1s;
+    white-space: nowrap;
+  }
+  .kb-btn:hover { background: var(--accent-bg); border-color: var(--accent-bd); color: var(--accent); }
+  .kb-btn:active { transform: scale(0.95); }
+  .kb-btn.op { background: var(--accent-bg); border-color: var(--accent-bd); color: var(--accent); font-weight: 500; }
+  .kb-btn.op:hover { background: #3b0712; }
+  .kb-btn.wide { min-width: 76px; }
+
+  .sf-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px dashed var(--border-md);
+    margin-bottom: 0.75rem;
+  }
+
+  /* ── History panel ── */
+  .history-panel {
+    grid-column: 1;
+    grid-row: 3;
+    max-width: 100%;
+  }
+  .history-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--faint);
+    font-size: 0.875rem;
+    font-style: italic;
+  }
+  .entry {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.125rem 1.375rem;
+    margin-bottom: 1rem;
+    animation: slideIn 0.18s ease;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  
+  .entry-query {
+    font-size: 1.05rem;
+    font-family: var(--sans);
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 4px;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .entry-query:hover {
+    background: #1c1917;
+  }
+  .entry-query::after {
+    content: ' ✎ click to edit';
+    font-size: 0.65rem;
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.15s;
+    vertical-align: middle;
+    margin-left: 10px;
+  }
+  .entry-query:hover::after {
+    opacity: 1;
+  }
+
+  .steps { display: flex; flex-direction: column; gap: 0; margin-bottom: 0.75rem; max-width: 100%; }
+  .step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 0.5rem 0.75rem;
+    background: var(--step-bg);
+    border-radius: 8px;
+    margin-bottom: 4px;
+    position: relative;
+    border: 1px solid var(--border);
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 22px;
+    bottom: -4px;
+    width: 1px;
+    height: 4px;
+    background: var(--border-md);
+  }
+  .step-num {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-bg);
+    border-radius: 999px;
+    min-width: 20px;
+    height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    border: 1px solid var(--accent-bd);
+  }
+  .step-body { flex: 1; min-width: 0; max-width: 100%; }
+  .step-cmd {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 2px;
+    overflow-wrap: break-word;
+  }
+  .step-result-latex { 
+    margin: 4px 0 2px; 
+    max-width: 100%; 
+    font-family: var(--sans); 
+    color: var(--text); 
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    overflow-x: auto;
+  }
+  .step-note { font-size: 0.7rem; color: var(--faint); margin-top: 1px; }
+
+  .final-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    max-width: 100%;
+  }
+  .final-label { font-size: 0.75rem; color: var(--faint); flex-shrink: 0; }
+  
+  .final-result-latex { 
+    font-size: 1.1rem; 
+    margin-top: 4px; 
+    color: var(--text); 
+    max-width: 100%; 
+    width: 100%;
+    font-family: var(--sans);
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    overflow-x: auto;
+  }
+  
+  .entry-error {
+    font-size: 0.8rem;
+    color: var(--error);
+    background: var(--error-bg);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+    border: 1px solid var(--accent-bd);
+  }
+
+  /* ── Reference panel ── */
+  .ref-panel {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    position: sticky;
+    top: 2rem;
+  }
+  .ref-panel h2 {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .ref-section { margin-bottom: 1.125rem; }
+  .ref-section-title {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    margin-bottom: 0.5rem;
+  }
+  .ref-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--bg);
+    font-size: 0.8rem;
+  }
+  .ref-sym {
+    font-size: 0.95rem;
+    color: var(--accent);
+    min-width: 80px;
+    flex-shrink: 0;
+  }
+  .ref-desc { color: var(--muted); }
+  .ref-example {
+    font-size: 0.72rem;
+    color: var(--faint);
+    margin-top: 1px;
+  }
+
+  /* ── Examples strip ── */
+  .examples-row {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .ex-label { font-size: 0.72rem; color: var(--faint); margin-right: 2px; flex-shrink: 0; }
+  .ex-chip {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    color: var(--muted);
+    background: var(--surface);
+    transition: border-color 0.1s, color 0.1s;
+  }
+  .ex-chip:hover { border-color: var(--accent-bd); color: var(--accent); background: var(--accent-bg); }
+
+  /* ── Text-math panel ── */
+  .text-math-toggle {
+    font-size: 0.7rem;
+    color: var(--faint);
+    cursor: pointer;
+    padding: 0.4rem 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    user-select: none;
+    margin-top: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .text-math-toggle:hover { color: var(--muted); }
+  .text-math-toggle .arrow { transition: transform 0.15s; font-size: 0.6rem; }
+  .text-math-toggle.open .arrow { transform: rotate(90deg); }
+  .text-math-body {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .text-math-body.visible { display: flex; }
+  .text-math-item {
+    background: var(--step-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .text-math-label { font-size: 0.65rem; color: var(--faint); min-width: 50px; padding-top: 2px; flex-shrink: 0; }
+  .text-math-code {
+    font-size: 0.75rem;
+    color: var(--muted);
+    flex: 1;
+    overflow-wrap: break-word;
+    word-break: break-all;
+  }
+  .copy-btn {
+    font-size: 0.65rem;
+    padding: 2px 7px;
+    border: 1px solid var(--border-md);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--faint);
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent-bd); }
+  .copy-btn.copied { color: #ef4444; border-color: var(--accent); }
+
+  .katex-wrap { 
+    display: inline-block; 
+    max-width: 100%; 
+    overflow-wrap: break-word; 
+    word-break: break-word; 
+    white-space: normal; 
+    padding: 2px 0; 
+  }
+  .katex-display { 
+    margin: 0; 
+    max-width: 100%; 
+    overflow-wrap: break-word; 
+    word-break: break-word; 
+    white-space: normal; 
+  }
+  .no-solution { font-size: 0.82rem; color: var(--muted); font-style: italic; padding: 4px 0; }
+
+  /* ── Sidebar Slider (Debug Panel) ── */
+  .debug-sidebar {
+    position: fixed;
+    top: 0;
+    right: -380px;
+    width: 380px;
+    height: 100vh;
+    background: #0f0f11;
+    border-left: 1px solid var(--border);
+    box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+    z-index: 1000;
+    transition: right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .debug-sidebar.open {
+    right: 0;
+  }
+  .debug-toggle-btn {
+    position: absolute;
+    left: -64px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-90deg);
+    transform-origin: center bottom;
+    background: #1c1917;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    color: var(--muted);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 6px 14px;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.1s, background 0.1s;
+  }
+  .debug-toggle-btn:hover {
+    color: var(--accent);
+    background: var(--surface);
+  }
+  .debug-sidebar h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--faint);
+    margin-bottom: 0.25rem;
+  }
+  .debug-desc {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  
+  #expr-input-debug {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-family: monospace;
+    font-size: 0.9rem;
+    color: #f43f5e;
+    padding: 0.75rem;
+  }
+
+  /* ── Matrix input panel ── */
+  .matrix-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.72);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .matrix-overlay.open { display: flex; }
+  .matrix-panel {
+    background: var(--surface);
+    border: 1px solid var(--border-md);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    max-width: min(92vw, 720px);
+    width: 100%;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45);
+  }
+  .matrix-panel h3 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .matrix-hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .matrix-grid-wrap {
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg);
+    padding: 0.75rem;
+    max-height: 52vh;
+  }
+  .matrix-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 5px;
+    min-width: 520px;
+  }
+  .matrix-cell {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    padding: 0 6px;
+    background: #1c1917;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    text-align: center;
+    outline: none;
+  }
+  .matrix-cell:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-bd);
+  }
+  .matrix-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .matrix-actions button {
+    padding: 0.45rem 0.9rem;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    border: 1px solid var(--border-md);
+    background: #1c1917;
+    color: var(--text);
+  }
+  .matrix-actions button:hover {
+    border-color: var(--accent-bd);
+    color: var(--accent);
+  }
+  .matrix-actions .matrix-insert {
+    background: var(--accent);
+    border-color: var(--accent-bd);
+    color: #fff;
+    font-weight: 500;
+  }
+  .matrix-actions .matrix-insert:hover {
+    background: #be123c;
+    color: #fff;
+  }
+
+  @media (max-width: 780px) {
+    main { grid-template-columns: 1fr; padding: 1rem; gap: 1rem; }
+    .ref-panel { grid-column: 1; grid-row: auto; position: static; }
+    .examples-row { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Symbolic Calculator</h1>
+  <span><span class="status-dot" id="dot"></span><span id="status-text">loading nerdamer…</span></span>
+</header>
+
+<main>
+
+  <div class="input-panel" style="grid-column:1; grid-row:1;">
+    <div class="expr-area mode-view" id="expr-area" onclick="enableEditMode()">
+      <span class="expr-label">›</span>
+      
+      <div id="expr-view-container" class="expr-view-container">
+        <span class="expr-view-placeholder">type or use the keyboard below…</span>
+      </div>
+      
+      <input id="expr-input" type="text" autocomplete="off" spellcheck="false" value="" onblur="disableEditMode()" disabled />
+      
+      <button class="run-btn" id="run-btn" onclick="handleRun(event)" disabled>Compute</button>
+    </div>
+    <div class="keyboard" id="keyboard"></div>
+  </div>
+
+  <div class="examples-row">
+    <span class="ex-label">try:</span>
+    <span class="ex-chip" onclick="setExpr(this)">solve(sin(x) = 0, x)</span>
+    <span class="ex-chip" onclick="setExpr(this)">solve(sin(x) = 3, x)</span>
+    <span class="ex-chip" onclick="setExpr(this)">factor((3x^2+3)^2)</span>
+    <span class="ex-chip" onclick="setExpr(this)">expand(differentiate(((3x^2+3x)^3)))</span>
+    <span class="ex-chip" onclick="setExpr(this)">factor(differentiate(x^4 - x^2))</span>
+    <span class="ex-chip" onclick="setExpr(this)">solve(x^2 - 4 = 0, x)</span>
+  </div>
+
+  <div class="history-panel" id="history">
+    <div class="history-empty" id="empty-msg">results appear here</div>
+  </div>
+
+  <div class="ref-panel">
+    <h2>syntax reference</h2>
+
+    <div class="ref-section">
+      <div class="ref-section-title">Calculus</div>
+      <div class="ref-row"><span class="ref-sym">d/dx</span><span class="ref-desc">derivative of expression</span></div>
+      <div class="ref-example" style="padding-left:88px;margin-bottom:6px;">→ differentiate(sin(x)*x)</div>
+      <div class="ref-row"><span class="ref-sym">∂/∂x</span><span class="ref-desc">partial derivative (same syntax)</span></div>
+      <div class="ref-example" style="padding-left:88px;margin-bottom:6px;">→ differentiate(x^2*y, y)</div>
+      <div class="ref-row"><span class="ref-sym">∫ dx</span><span class="ref-desc">indefinite integral</span></div>
+      <div class="ref-example" style="padding-left:88px;margin-bottom:6px;">→ integrate(e^x * cos(x))</div>
+    </div>
+
+    <div class="ref-section">
+      <div class="ref-section-title">Algebra</div>
+      <div class="ref-row"><span class="ref-sym">expand</span><span class="ref-desc">distribute / FOIL</span></div>
+      <div class="ref-row"><span class="ref-sym">factor</span><span class="ref-desc">factor into primes</span></div>
+      <div class="ref-row"><span class="ref-sym">simplify</span><span class="ref-desc">reduce the expression</span></div>
+      <div class="ref-row"><span class="ref-sym">solve … for x</span><span class="ref-desc">find roots symbolically</span></div>
+    </div>
+
+    <div class="ref-section">
+      <div class="ref-section-title">Functions</div>
+      <div class="ref-row"><span class="ref-sym">sin cos tan</span><span class="ref-desc">trig functions</span></div>
+      <div class="ref-row"><span class="ref-sym">asin acos atan</span><span class="ref-desc">inverse trig</span></div>
+      <div class="ref-row"><span class="ref-sym">ln log</span><span class="ref-desc">natural / base-10 log</span></div>
+      <div class="ref-row"><span class="ref-sym">sqrt abs</span><span class="ref-desc">square root, absolute value</span></div>
+      <div class="ref-row"><span class="ref-sym">e pi</span><span class="ref-desc">Euler's number, π</span></div>
+    </div>
+  </div>
+
+</main>
+
+<<div class="matrix-overlay" id="matrix-overlay" onclick="if(event.target===this)closeMatrixPanel()">
+  <div class="matrix-panel" onclick="event.stopPropagation()">
+    <h3>Matrix input</h3>
+    
+    <div style="display: flex; gap: 1rem; margin: 0.25rem 0; align-items: center; background: var(--bg); padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--border);">
+      <label style="font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+        Rows: 
+        <input type="number" id="matrix-rows-input" value="3" min="1" max="30" style="width: 55px; background: #1c1917; border: 1px solid var(--border-md); color: var(--text); border-radius: 4px; padding: 3px 6px; text-align: center; outline: none;" oninput="buildMatrixGrid()">
+      </label>
+      <label style="font-size: 0.8rem; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+        Columns: 
+        <input type="number" id="matrix-cols-input" value="3" min="1" max="30" style="width: 55px; background: #1c1917; border: 1px solid var(--border-md); color: var(--text); border-radius: 4px; padding: 3px 6px; text-align: center; outline: none;" oninput="buildMatrixGrid()">
+      </label>
+    </div>
+
+    <p class="matrix-hint">Fill any cells you need. Empty cells are automatically treated as 0 inside your generated matrix array.</p>
+    <div class="matrix-grid-wrap">
+      <div class="matrix-grid" id="matrix-grid"></div>
+    </div>
+    <div class="matrix-actions">
+      <button type="button" onclick="closeMatrixPanel()">Cancel</button>
+      <button type="button" class="matrix-insert" onclick="confirmMatrixInput()">Insert matrix</button>
+    </div>
+  </div>
+</div>
+
+<div class="debug-sidebar" id="debug-sidebar">
+  <button class="debug-toggle-btn" onclick="toggleDebugSidebar()">debug</button>
+  <h3>Nerdamer State Track</h3>
+  <p class="debug-desc">This console contains only the literal Nerdamer commands passed back into the engine pipeline logic context.</p>
+  <button onclick="runDiagnosticSuite()" style="margin-top: 8px; padding: 6px 12px; background: #e11d48; border: 1px solid var(--accent-bd); color: #fff; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: 500;">Run Diagnostics</button>
+  
+  <div class="input-panel" style="background: #161619; margin-top: 0.5rem;">
+    <input id="expr-input-debug" type="text" readonly placeholder="empty nerdamer command stream..." />
+  </div>
+</div>
+<!-- Here the JS starts -->
+
+<script src="src/loader.js"></script>
+
+<script src="src/input.js"></script>
+
+<script src="src/builder.js"></script>
+
+<script src="src/translator.js"></script>
+
+<script src="src/viewer.js"></script>
+
+
+</body>
+</html>

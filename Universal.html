@@ -803,7 +803,7 @@
 </div>
 
 <script>
-  <!--Here I loaded the librariess :$ they are all used here. The matrix and linear algebra are all in core.-->
+  // Here I loaded the librariess :$ they are all used here. The matrix and linear algebra are all in core.
 const SCRIPTS = [
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/nerdamer.core.js',
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Algebra.js',
@@ -811,7 +811,7 @@ const SCRIPTS = [
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Solve.js',
   'https://cdn.jsdelivr.net/npm/nerdamer@1.1.13/Extra.js',
 ];
-<!--Heres the promise wrapper + the error catcher-->
+// Here's the promise wrapper + the error catcher
 function loadScript(src) {
   return new Promise((res, rej) => {
     const s = document.createElement('script');
@@ -820,7 +820,7 @@ function loadScript(src) {
   });
 }
 
-<!--We ensure that everything is loaded before moving on--this was the biggest cause before-->
+// We ensure that everything is loaded before moving on--this was the biggest cause before
 
 async function loadNerdamer() {
   const dot = document.getElementById('dot');
@@ -1140,6 +1140,7 @@ function matrixToNerdamerString(rows) {
   return 'matrix(' + rows.map(row => '[' + row.join(',') + ']').join(',') + ')';
 }
 
+// in input
 function confirmMatrixInput() {
   const rows = readMatrixFromGrid();
   if (!rows) { closeMatrixPanel(); return; }
@@ -1229,7 +1230,6 @@ function syncNerdamerToLatexView() {
   }
 }
 
-<!--Putting this AFTER the cursor placer and LaTeX UI works much better-->
 buildKeyboard();
 </script>
 
@@ -1254,8 +1254,8 @@ document.addEventListener('keydown', e => {
     handleRun();
   }
 });
-<!-- Here we made the Lexical tool that makes Universal as strong as it is. This is the tokenizer which is for now mostly native to server-side CAS. -->
-<!-- Users can write a variety of inputs which will work -->
+// Here we made the Lexical tool that makes Universal as strong as it is. This is the tokenizer which is for now mostly native to server-side CAS.
+// Users can write a variety of inputs which will work
 const KNOWN_NAMES = new Set([
   'sin','cos','tan','cot','sec','csc',
   'asin','acos','atan','acot','asec','acsc',
@@ -1268,7 +1268,7 @@ const KNOWN_NAMES = new Set([
   'matrix','invert','transpose','determinant','det','dot','vector','imatrix','cross','size',
 ]);
 
-<!-- xy->x*y, cos()->cos() -->
+// xy->x*y, cos()->cos()
 
 function tokenize(expr) {
   let out = '';
@@ -1408,10 +1408,10 @@ function getCleanEnglishIntentName(rawCommand) {
   };
   return dictionary[rawCommand.toLowerCase()] || rawCommand;
 }
-<!-- This part finds the innermost bracket by creating a matched object data structure based on bracket count through regex -->
+// This part finds the innermost bracket by creating a matched object data structure based on bracket count through regex.
 // I fixed it to be able to go down the amount of brackets for as many brackets as possible; so the issue of unnecessary brackets is no more !!!
 // this works in volatile memory as it is the whole purpose of the project: being client side
-<!-- This essentially runs the math commands in order when they are nested. the nested commands result becomes the input of the nester command.-->
+// This essentially runs the math commands in order when they are nested. the nested commands result becomes the input of the nester command.
 function findInnermostCommand(str) {
   const regex = /\b(integrate|differentiate|diff|expand|factor|simplify|solve|invert|transpose|determinant|det|dot)\(/gi;
   let match;
@@ -1459,7 +1459,7 @@ function findInnermostCommand(str) {
   }
   return null;
 }
-<!-- Trig functions fail to give readable results as nerdamer tackles them numerically. -->
+// Trig functions fail to give readable results as nerdamer tackles them numerically.
 
 function tryInterceptTrigEquations(rawInput) {
   const clean = rawInput.trim();
@@ -1553,7 +1553,7 @@ function tryInterceptTrigEquations(rawInput) {
   return { isIntercepted: false };
 }
 
-<!-- This auto closes unclosed parentheses -->
+// This auto closes unclosed parentheses
 
 function balanceParentheses(inputString) {
   let openCount = 0;
@@ -1571,7 +1571,7 @@ function balanceParentheses(inputString) {
   return inputString;
 }
 
-<!-- // This coordinates the pipeline :) with this we can choose when to use which function -->
+// This coordinates the pipeline :) with this we can choose when to use which function
 
 function computeResult(raw) {
   let steps = [], finalResult = null, finalLabel = null, finalNote = null, error = null;
