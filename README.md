@@ -2,6 +2,8 @@ This is Universal calculator; a symbolic calculator designed entirely on the cli
 
 This calculator has the capacity to replace paid-for pedagogical mathematical services students pay for, the aim of this project is to make a symbolic calculator requiring no operational cost nor costs for students.
 
+link: https://kulsrepository.github.io/Universal/
+
 The layout of the site:
 
 ![explanatory image](imgs/howitlooks.png)
